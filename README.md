@@ -28,7 +28,7 @@ pip install -r requirements.txt
 ```
 
 > `requirements.txt` instala PyTorch con soporte CUDA 12.4. En equipos sin GPU NVIDIA, instalar antes la versión CPU:
-> `pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu`
+> `pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu`
 > El sistema funciona igual en CPU (la CNN es pequeña).
 
 El modelo entrenado de dígitos (`models/digit_cnn.pt`) está incluido en el repositorio: no hace falta entrenar para usar el sistema.

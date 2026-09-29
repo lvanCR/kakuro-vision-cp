@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Kakuro Vision CP</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Kakuro Vision CP</h1>
+    <p class="sub">Sube la foto de un Kakuro: visión computacional lee la grilla y un modelo de Constraint Programming (OR-Tools CP-SAT) lo resuelve.</p>
+  </header>
+
+  <main>
+    <section class="panel" aria-labelledby="t-input">
+      <h2 id="t-input">1. Imagen</h2>
+      <label id="drop" class="drop" for="file">
+        <input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/bmp" hidden>
+        <span class="drop-main">Arrastra una imagen aquí o haz clic para elegirla</span>
+        <span class="drop-hint">JPG o PNG, hasta 15 MB</span>
+      </label>
+      <div class="examples">
+        <span>O prueba un ejemplo:</span>
+        <div id="examples" class="chips"></div>
+      </div>
+      <div class="controls">
+        <label>Modelo CP
+          <select id="model">
+            <option value="M2" selected>M2: reducción de dominios (recomendado)</option>
+            <option value="M1">M1: AllDifferent + suma</option>
+            <option value="M3">M3: tabla de combinaciones</option>
+          </select>
+        </label>
+        <button id="solve" class="primary" disabled>Resolver</button>
+      </div>
+    </section>
+
+    <section id="status" class="panel status" hidden aria-live="polite"></section>
+
+    <section class="panel" aria-labelledby="t-out">
+      <h2 id="t-out">2. Resultado</h2>
+      <div class="images">
+        <figure><figcaption>Original</figcaption><div class="frame" id="f-original"><span class="empty">Sin imagen</span></div></figure>
+        <figure><figcaption>Solución sobre la foto</figcaption><div class="frame" id="f-overlay"><span class="empty">—</span></div></figure>
+        <figure><figcaption>Grilla limpia</figcaption><div class="frame" id="f-clean"><span class="empty">—</span></div></figure>
+      </div>
+      <div id="details" class="details" hidden>
+        <dl id="summary" class="summary"></dl>
+        <ul id="notes" class="notes"></ul>
+        <div class="downloads">
+          <button id="dl-puzzle" class="ghost">Descargar puzzle.json</button>
+          <button id="dl-solution" class="ghost">Descargar solution.json</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>CC58 · Trabajo 1 · <a href="/docs">API (OpenAPI)</a></footer>
+  <script src="/static/app.js"></script>
+</body>
+</html>
