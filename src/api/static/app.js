@@ -56,6 +56,12 @@ fileInput.addEventListener("change", () => selectFile(fileInput.files[0]));
 }));
 drop.addEventListener("drop", (e) => selectFile(e.dataTransfer.files[0]));
 
+async function runExample(name) {
+  const blob = await (await fetch(`/api/examples/${encodeURIComponent(name)}`)).blob();
+  selectFile(new File([blob], name, { type: blob.type }));
+  solve();
+}
+
 async function loadExamples() {
   try {
     const names = await (await fetch("/api/examples")).json();
@@ -63,13 +69,13 @@ async function loadExamples() {
       const b = document.createElement("button");
       b.className = "chip";
       b.textContent = name.replace(/^ejemplo_/, "").replace(/\.jpg$/, "").replaceAll("_", " ");
-      b.addEventListener("click", async () => {
-        const blob = await (await fetch(`/api/examples/${encodeURIComponent(name)}`)).blob();
-        selectFile(new File([blob], name, { type: blob.type }));
-        solve();
-      });
+      b.addEventListener("click", () => runExample(name));
       $("examples").append(b);
     }
+    // ?ejemplo=negro_foto resuelve ese ejemplo al abrir la página (útil para demos)
+    const wanted = new URLSearchParams(location.search).get("ejemplo");
+    const match = wanted && names.find((n) => n === `ejemplo_${wanted}.jpg` || n === wanted);
+    if (match) runExample(match);
   } catch {
     /* sin ejemplos: no es crítico */
   }
