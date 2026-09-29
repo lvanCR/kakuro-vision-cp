@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "rows": 3,
+  "cols": 3,
+  "grid": [
+    [{"type": "clue", "right": null, "down": null}, {"type": "clue", "right": null, "down": 4}, {"type": "clue", "right": null, "down": 6}],
+    [{"type": "clue", "right": 3, "down": null}, {"type": "white"}, {"type": "white"}],
+    [{"type": "clue", "right": 7, "down": null}, {"type": "white"}, {"type": "white"}]
+  ],
+  "expected": {
+    "status": "unique",
+    "solution": [
+      [null, null, null],
+      [null, 1, 2],
+      [null, 3, 4]
+    ]
+  }
+}

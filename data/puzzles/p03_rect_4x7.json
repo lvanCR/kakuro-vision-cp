@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "rows": 4,
+  "cols": 7,
+  "grid": [
+    [{"type": "clue", "right": null, "down": null}, {"type": "clue", "right": null, "down": 10}, {"type": "clue", "right": null, "down": 17}, {"type": "clue", "right": null, "down": null}, {"type": "clue", "right": null, "down": 8}, {"type": "clue", "right": null, "down": 13}, {"type": "clue", "right": null, "down": 19}],
+    [{"type": "clue", "right": 16, "down": null}, {"type": "white"}, {"type": "white"}, {"type": "clue", "right": 12, "down": 16}, {"type": "white"}, {"type": "white"}, {"type": "white"}],
+    [{"type": "clue", "right": 34, "down": null}, {"type": "white"}, {"type": "white"}, {"type": "white"}, {"type": "white"}, {"type": "white"}, {"type": "white"}],
+    [{"type": "clue", "right": 15, "down": null}, {"type": "white"}, {"type": "white"}, {"type": "white"}, {"type": "clue", "right": 6, "down": null}, {"type": "white"}, {"type": "white"}]
+  ],
+  "expected": {
+    "status": "unique",
+    "solution": [
+      [null, null, null, null, null, null, null],
+      [null, 7, 9, null, 3, 1, 8],
+      [null, 2, 3, 7, 5, 8, 9],
+      [null, 1, 5, 9, null, 4, 2]
+    ]
+  }
+}

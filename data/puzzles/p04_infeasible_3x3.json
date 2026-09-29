@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "rows": 3,
+  "cols": 3,
+  "grid": [
+    [{"type": "clue", "right": null, "down": null}, {"type": "clue", "right": null, "down": 4}, {"type": "clue", "right": null, "down": 16}],
+    [{"type": "clue", "right": 3, "down": null}, {"type": "white"}, {"type": "white"}],
+    [{"type": "clue", "right": 17, "down": null}, {"type": "white"}, {"type": "white"}]
+  ],
+  "expected": {"status": "infeasible"}
+}
