@@ -119,6 +119,9 @@ def candidate_quads(binary: np.ndarray, max_quads: int = 6) -> list[tuple[np.nda
             if all(np.abs(q - o).max() > 0.02 * max(h, w) for o, _ in quads):
                 quads.append((q, "quad"))
     quads = quads[:max_quads]
+    lines_quad = quad_from_lines(binary)
+    if lines_quad is not None:
+        quads.append((lines_quad, "lines"))
     quads.append((np.array([[0, 0], [w - 1, 0], [w - 1, h - 1], [0, h - 1]], np.float32), "image"))
     if contours:
         pts = max(contours, key=cv2.contourArea).reshape(-1, 2).astype(np.float32)
@@ -126,6 +129,89 @@ def candidate_quads(binary: np.ndarray, max_quads: int = 6) -> list[tuple[np.nda
         fb = np.array([pts[np.argmin(s)], pts[np.argmax(d)], pts[np.argmax(s)], pts[np.argmin(d)]], np.float32)
         quads.append((fb, "fallback"))
     return quads
+
+
+def _intersect(l1: tuple[float, float], l2: tuple[float, float]) -> np.ndarray | None:
+    """Intersección de dos rectas en forma normal (theta, rho): x cos t + y sin t = rho."""
+    (t1, r1), (t2, r2) = l1, l2
+    A = np.array([[np.cos(t1), np.sin(t1)], [np.cos(t2), np.sin(t2)]])
+    if abs(np.linalg.det(A)) < 1e-6:
+        return None
+    return np.linalg.solve(A, np.array([r1, r2]))
+
+
+def quad_from_lines(binary: np.ndarray) -> np.ndarray | None:
+    """Cuadrilátero formado por las líneas más externas de la grilla (sirve sin borde rectangular).
+
+    1. Segmentos rectos largos con Hough probabilístico.
+    2. Las dos orientaciones dominantes (histograma de ángulos ponderado por
+       longitud): las filas y las columnas de la grilla, en perspectiva.
+    3. En cada familia, las rectas con desplazamiento mínimo y máximo que
+       tengan soporte (varios segmentos o longitud suficiente): los bordes
+       exteriores de la grilla, aunque su contorno sea irregular.
+    4. Las 4 intersecciones forman el cuadrilátero.
+    """
+    h, w = binary.shape
+    side = max(h, w)
+    segs = cv2.HoughLinesP(binary, 1, np.pi / 360, threshold=80,
+                           minLineLength=int(0.04 * side), maxLineGap=int(0.005 * side) + 2)
+    if segs is None or len(segs) < 8:
+        return None
+    segs = np.asarray(segs, np.float64).reshape(-1, 4)       # (n, 1, 4) u (n, 4) según la versión
+    dx, dy = segs[:, 2] - segs[:, 0], segs[:, 3] - segs[:, 1]
+    length = np.hypot(dx, dy)
+    angle = np.degrees(np.arctan2(dy, dx)) % 180
+    hist = np.bincount(np.round(angle).astype(int) % 180, weights=length, minlength=180)
+    hist = hist + np.roll(hist, 1) + np.roll(hist, -1)
+    a1 = int(np.argmax(hist))
+    dist = np.minimum(np.abs(np.arange(180) - a1), 180 - np.abs(np.arange(180) - a1))
+    a2 = int(np.argmax(np.where(dist > 45, hist, 0)))
+    if hist[a2] < 0.2 * hist[a1]:
+        return None
+
+    families = []
+    for a in (a1, a2):
+        d = np.minimum(np.abs(angle - a), 180 - np.abs(angle - a))
+        idx = np.nonzero(d <= 8)[0]
+        if len(idx) < 3:
+            return None
+        # recta de cada segmento en forma normal; normal de la familia
+        t = np.radians(a) + np.pi / 2
+        mx, my = (segs[idx, 0] + segs[idx, 2]) / 2, (segs[idx, 1] + segs[idx, 3]) / 2
+        seg_t = np.radians(angle[idx]) + np.pi / 2
+        rho = mx * np.cos(seg_t) + my * np.sin(seg_t)
+        offset = mx * np.cos(t) + my * np.sin(t)
+        order = np.argsort(offset)
+        # extremos con soporte: acumular longitud desde cada lado hasta un mínimo
+        need = 0.08 * side
+        ends = []
+        for seq in (order, order[::-1]):
+            acc, pick = 0.0, seq[0]
+            for k in seq:
+                if abs(offset[k] - offset[seq[0]]) > 0.02 * side:
+                    break
+                acc += length[idx[k]]
+                pick = k
+            if acc < need:
+                # el extremo no tiene soporte: descartar segmentos aislados y reintentar
+                for k in seq:
+                    near = np.abs(offset - offset[k]) <= 0.02 * side
+                    if length[idx[near]].sum() >= need:
+                        pick = k
+                        break
+            ends.append((float(seg_t[pick]), float(rho[pick])))
+        families.append(ends)
+
+    (a_lo, a_hi), (b_lo, b_hi) = families
+    pts = [_intersect(a, b) for a in (a_lo, a_hi) for b in (b_lo, b_hi)]
+    if any(p is None for p in pts):
+        return None
+    pts = np.array(pts, np.float32)
+    if not (np.all(pts[:, 0] > -0.1 * w) and np.all(pts[:, 0] < 1.1 * w) and
+            np.all(pts[:, 1] > -0.1 * h) and np.all(pts[:, 1] < 1.1 * h)):
+        return None
+    q = order_corners(pts)
+    return q if cv2.isContourConvex(q.reshape(-1, 1, 2)) else None
 
 
 def warp(gray: np.ndarray, corners: np.ndarray, side: int = WARP_SIDE) -> tuple[np.ndarray, np.ndarray]:
