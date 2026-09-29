@@ -4,43 +4,118 @@ Sistema end-to-end que lee la imagen de un Kakuro, extrae su estructura con Visi
 
 Trabajo 1 del curso CC58 — Tópicos en Ciencia de la Computación.
 
-## Estado
+```
+foto ──► visión (OpenCV + CNN) ──► puzzle.json ──► modelo CP (CP-SAT) ──► solución ──► overlay sobre la foto
+```
 
-En desarrollo. Plan de trabajo:
-- [`docs/fase1_vision.md`](docs/fase1_vision.md) — pipeline de visión (imagen → JSON)
-- [`docs/fase2_solver.md`](docs/fase2_solver.md) — modelo de CP (JSON → solución)
+Documentación técnica:
+- [`docs/fase1_vision.md`](docs/fase1_vision.md): pipeline de visión (imagen → JSON), métricas y decisiones.
+- [`docs/fase2_solver.md`](docs/fase2_solver.md): modelo de CP formal (JSON → solución), variantes y análisis de tiempos.
+- [`data/README.md`](data/README.md): cómo armar y evaluar el dataset real.
 
 ## Instalación
+
+Requiere Python 3.12.
 
 ```bash
 python -m venv .venv
 # Windows
 .venv\Scripts\activate
+# Linux / macOS
+source .venv/bin/activate
+
 pip install -r requirements.txt
 ```
 
-> `requirements.txt` instala PyTorch con soporte CUDA 12.4. En equipos sin GPU NVIDIA, instalar antes la versión CPU de `torch` y `torchvision`.
+> `requirements.txt` instala PyTorch con soporte CUDA 12.4. En equipos sin GPU NVIDIA, instalar antes la versión CPU:
+> `pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cpu`
+> El sistema funciona igual en CPU (la CNN es pequeña).
+
+El modelo entrenado de dígitos (`models/digit_cnn.pt`) está incluido en el repositorio: no hace falta entrenar para usar el sistema.
 
 ## Uso
 
-### Solver (Fase 2)
+### Sistema completo (foto → solución)
 
 ```bash
-# Resolver un puzzle a partir de su JSON
+python -m src.main ruta/a/foto.jpg
+python -m src.main ruta/a/foto.jpg --out-dir outputs/mi_foto --model M2 --show
+```
+
+Genera en `outputs/<nombre de la foto>/`:
+
+| Archivo | Contenido |
+|---|---|
+| `puzzle.json` | Estructura extraída por la visión (Fase 1) |
+| `solution.json` | Resultado del solver: estado, solución, unicidad, pistas corregidas, estadísticas (Fase 2) |
+| `overlay.png` | Solución superpuesta sobre la foto original (Fase 3) |
+| `clean.png` | Grilla limpia con la solución |
+
+Las pistas que el solver tuvo que corregir, porque el OCR las leyó mal, aparecen resaltadas en naranja y se listan en la consola.
+
+### Cada fase por separado
+
+```bash
+# Fase 1: imagen -> JSON
+python -m src.vision.pipeline ruta/a/foto.jpg --out outputs/puzzle.json
+
+# Fase 2: JSON -> solución
 python -m src.solver data/puzzles/p02_square_6x6.json
-python -m src.solver data/puzzles/p02_square_6x6.json --model M2 --out outputs/p02_solucion.json
-
-# Generar un puzzle sintético
-python -m src.eval.generate 12 12 --seed 1 --out outputs/gen_12x12.json
-
-# Benchmark del solver (tablas y gráfica en outputs/bench/)
-python -m src.eval.bench_solver
+python -m src.solver outputs/puzzle.json --model M3 --out outputs/solucion.json
 ```
 
 Opciones del solver: `--model {M1,M2,M3}`, `--search {auto,min_domain}`, `--no-unique`, `--no-correct`, `--time-limit`, `--workers`, `--out`.
+
+### Evaluación y experimentos
+
+```bash
+# Visión por etapas: sintéticas o dataset real
+python -m src.eval.eval_vision --synthetic 200
+python -m src.eval.eval_vision --images data/raw --labels data/labels
+
+# Benchmark del solver (tablas y gráfica en outputs/bench/)
+python -m src.eval.bench_solver
+
+# Utilidades
+python -m src.eval.render --n 40 --out data/synthetic          # imágenes sintéticas con su JSON
+python -m src.eval.generate 12 12 --seed 1 --out outputs/p.json # puzzle sintético
+python -m src.eval.make_label data/raw/k01.jpg                 # borrador de etiqueta
+```
+
+### Reentrenar la CNN (opcional)
+
+```bash
+python -m src.training.digit_dataset --fonts train --n 1500 --out data/digits/train.npz
+python -m src.training.digit_dataset --fonts test --n 300 --out data/digits/test.npz
+python -m src.training.train_cnn
+```
+
+Las fuentes de entrenamiento y de prueba son disjuntas. Los nombres de las fuentes están en `src/eval/render.py`; se buscan en `C:/Windows/Fonts` y, si no, se usan las de matplotlib.
 
 ### Tests
 
 ```bash
 python -m pytest
 ```
+
+## Estructura
+
+```
+src/
+  vision/     preprocess, locate, grid, cells, digits, ocr_cnn, validate, pipeline
+  solver/     parse, combos, model, solve, verify (+ CLI)
+  training/   dataset de dígitos y entrenamiento de la CNN
+  eval/       generador y renderizador sintéticos, evaluaciones, benchmark, etiquetado
+  overlay.py  visualización (Fase 3)
+  main.py     sistema completo
+data/         puzzles de prueba, dataset real y etiquetas
+models/       CNN de dígitos entrenada
+docs/         planes y resultados de cada fase
+tests/        pruebas unitarias y de integración
+```
+
+## Referencias
+
+- S. Bagadia, N. Desai. *End-to-end system for recognizing and solving Kakuro puzzles.* Stanford CS231A, reporte de proyecto final.
+- L. Perron, F. Didier. *CP-SAT*, Google OR-Tools.
+- G. Bradski. *The OpenCV Library.* Dr. Dobb's Journal, 2000.

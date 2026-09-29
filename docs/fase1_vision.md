@@ -186,9 +186,10 @@ Ver el formato en la sección 3.
 - `type`: `"white"` (variable del solver) o `"clue"` (celda de pista; `right` / `down` son enteros o `null`; si ambos son `null` es un bloque sin pistas).
 - `right`: suma del tramo horizontal que empieza a su derecha. `down`: suma del tramo vertical que empieza debajo.
 - `uncertain_clues`: opcional; solo pistas de baja confianza.
-- `geometry`: opcional para el solver; lo usa la Fase 3 para superponer la solución.
+- `geometry`: opcional para el solver; lo usa la Fase 3 para superponer la solución. `H` va de la imagen original a la rectificada. `corners` están en coordenadas de la imagen original. `grid_lines` guarda las posiciones de las líneas en la vista rectificada.
+- `vision` (añadido en la implementación): diagnóstico. Incluye el método de esquinas usado, los avisos estructurales y la lectura cruda de cada pista con su confianza.
 
-Las **etiquetas manuales (ground truth)** del dataset usan el mismo formato, sin `uncertain_clues` ni `geometry`.
+Las **etiquetas manuales (ground truth)** del dataset usan el mismo formato, sin `uncertain_clues`, `geometry` ni `vision`. `python -m src.eval.make_label FOTO` genera un borrador para corregir a mano.
 
 ---
 
@@ -236,6 +237,46 @@ Las dos métricas en negrita no aparecen en el paper y son las más relevantes: 
 
 ---
 
+### 5.1 Resultados en imágenes sintéticas
+
+`python -m src.eval.eval_vision --synthetic 200`. Las imágenes se generan con `src/eval/render.py`:
+- con fuentes **no usadas** para entrenar la CNN;
+- 2/3 de estilo B y 1/3 de estilo A;
+- 3/4 simulan una foto: perspectiva, gradiente de iluminación, sombra, desenfoque, ruido y JPEG.
+
+| Métrica | Todas (200) | Estilo A (66) | Estilo B (134) | Digital (50) | Foto (150) |
+|---|---|---|---|---|---|
+| Esquinas (error < 2 %) | 100 % (error medio 0.18 %) | | | | |
+| Tamaño de grilla | 100 % | 100 % | 100 % | 100 % | 100 % |
+| Clasificación de celdas | 100 % | 100 % | 100 % | 100 % | 100 % |
+| Dígitos | 99.83 % | 99.85 % | 99.82 % | 99.81 % | 99.83 % |
+| Pistas (lectura cruda) | 99.80 % | 99.80 % | 99.80 % | 99.83 % | 99.79 % |
+| Pistas (tras validación) | 99.84 % | 99.86 % | 99.83 % | 99.83 % | 99.85 % |
+| **JSON exacto** | **97.5 %** | 98.5 % | 97.0 % | 98.0 % | 97.3 % |
+| **Solución correcta (e2e)** | **98.0 %** | 98.5 % | 97.8 % | 98.0 % | 98.0 % |
+
+Tiempo medio: visión 0.13 s y solver 0.08 s por imagen, con la GPU usada por la CNN.
+
+**Estas cifras son una cota superior.** Las imágenes sintéticas no reproducen fuentes de periódico, papel arrugado, reflejos ni distorsión de lente. Las métricas que cuentan para el informe son las del dataset real (`--images data/raw`).
+
+### 5.2 Desviaciones respecto al plan (y por qué)
+
+- **CNN de dígitos:**
+  - Se entrena con recortes producidos por el **propio pipeline** sobre puzzles renderizados (`src/training/digit_dataset.py`), en lugar de dígitos sintéticos aislados. Así ve exactamente el desenfoque, la polaridad y el centrado de la inferencia.
+  - Los datos son ~61 000 dígitos de 1 500 puzzles con 27 fuentes. En prueba, con 11 fuentes no vistas, alcanza **99.78 %**.
+  - **No** se implementó la clase "no-dígito": los filtros de segmentación y la estructura resultaron suficientes (100 % de segmentación correcta en la prueba sintética).
+- **Confianza de las pistas:** la CNN se entrena con suavizado de etiquetas, así que su probabilidad máxima ronda 0.88 aun cuando no hay duda. Una pista se marca como incierta si su mejor lectura tiene probabilidad < 0.5, o si la segunda tiene al menos el 5 % de la probabilidad de la primera. Si falla el chequeo global de sumas, pasan al solver **todas** las pistas con alternativas.
+- **Segmentación:** además del plan, se usa la estructura. Un tramo de ≥ 4 celdas suma ≥ 10, así que su pista tiene dos dígitos con seguridad. También se descartan componentes centradas junto a la diagonal (restos de la línea).
+- **Clasificación de celdas:**
+  - La diagonal se detecta con el contraste medio a lo largo de la diagonal frente a líneas paralelas, de forma independiente de la polaridad. Un umbral de tinta fijo fallaba en fotos de bajo contraste.
+  - La iluminación se estima con una superficie cuadrática ajustada a las celdas claras.
+- **Esquinas:** se elige el cuadrilátero candidato **más pequeño**. En fotos, la hoja de papel también forma un cuadrilátero que contiene a la grilla.
+
+### 5.3 Pendiente
+
+- **Dataset real**: fotos y capturas (≥ 10) con sus etiquetas, y evaluación con `--images data/raw`. Ver `data/README.md`.
+- Comparación con OCR preentrenados (EasyOCR, Tesseract) como línea base. Requiere instalar paquetes y descargar modelos externos.
+
 ## 6. Riesgos y mitigaciones
 
 | Riesgo | Mitigación |
@@ -249,28 +290,33 @@ Las dos métricas en negrita no aparecen en el paper y son las más relevantes: 
 
 ---
 
-## 7. Estructura de módulos sugerida
+## 7. Estructura de módulos (implementada)
 
 ```
 src/
   vision/
     preprocess.py   # pasos 1–2
-    locate.py       # paso 3
-    warp.py         # paso 4
+    locate.py       # pasos 3–4 (esquinas y homografía)
     grid.py         # paso 5
     cells.py        # pasos 6–7
     digits.py       # pasos 8–9
-    ocr_cnn.py      # paso 10 (definición e inferencia del modelo)
+    ocr_cnn.py      # paso 10 (modelo e inferencia)
     validate.py     # paso 11
-    export.py       # paso 12
+    pipeline.py     # pasos 1–12: imagen -> JSON
   training/
-    synth_digits.py # generación de dígitos sintéticos
+    digit_dataset.py  # dataset de dígitos con recortes del pipeline
     train_cnn.py
   eval/
+    render.py       # imágenes sintéticas (estilos A y B, simulación de foto)
     eval_vision.py  # métricas de la sección 5
+    make_label.py   # borradores de etiquetas del dataset real
+  overlay.py        # Fase 3: solución sobre la foto y grilla limpia
+  main.py           # sistema completo: python -m src.main FOTO
+models/
+  digit_cnn.pt      # pesos entrenados (1.7 MB) + digit_cnn.json (métricas)
 ```
 
-**Dependencias previstas:** `opencv-python`, `numpy`, `torch`, `torchvision`, `pillow` (renderizado de fuentes); opcionales para comparación: `easyocr`, `pytesseract` (+ binario de Tesseract).
+**Dependencias:** `opencv-python`, `numpy`, `torch`, `pillow`, `matplotlib`. Opcionales para la comparación: `easyocr`, `pytesseract` (+ binario de Tesseract).
 
 ---
 
