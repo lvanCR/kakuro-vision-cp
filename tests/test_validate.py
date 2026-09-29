@@ -14,6 +14,7 @@ def onehot(*digits, p=0.97):
 def test_confident_reading():
     r = read_clue(onehot(1, 6), 0, 0, "right", 3)
     assert r.raw == 16 and r.value == 16 and r.confidence > CONFIDENT
+    assert select_uncertain([r, ClueReading(0, 1, "down", 3, [(16, 0.9)])]) == []
 
 
 def test_invalid_reading_is_replaced():
@@ -43,5 +44,7 @@ def test_select_uncertain_global_check():
     assert select_uncertain([a, b]) == [a, b]          # 3 != 4: se liberan todas
     b.candidates[0] = (3, 0.99)
     assert select_uncertain([a, b]) == []              # consistentes y confiables
-    a.candidates[0] = (3, 0.6)
-    assert select_uncertain([a, b]) == [a]
+    a.candidates[0] = (3, 0.4)
+    assert select_uncertain([a, b]) == [a]             # poca confianza absoluta
+    a.candidates[:] = [(3, 0.8), (8, 0.1)]
+    assert select_uncertain([a, b]) == [a]             # rival plausible

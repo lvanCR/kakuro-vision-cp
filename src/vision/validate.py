@@ -18,7 +18,10 @@ from src.solver.parse import sum_bounds
 
 TOP_K = 3                   # candidatos por dígito
 MAX_CANDIDATES = 4          # candidatos por pista enviados al solver
-CONFIDENT = 0.90            # probabilidad mínima para no marcar la pista como incierta
+CONFIDENT = 0.5             # probabilidad mínima para no marcar la pista como incierta
+RIVAL_RATIO = 0.05          # incierta si la 2.a lectura tiene al menos esta fracción de la prob. de la 1.a
+# (la CNN se entrena con suavizado de etiquetas: su probabilidad máxima ronda 0.88
+#  por dígito aun cuando no hay duda, por eso se usa un criterio relativo)
 UNKNOWN_P = 1e-3            # probabilidad asignada a sumas válidas no vistas por el OCR
 
 
@@ -76,4 +79,4 @@ def select_uncertain(readings: list[ClueReading]) -> list[ClueReading]:
     if h != v:
         return [r for r in readings if len(r.candidates) > 1]
     return [r for r in readings if len(r.candidates) > 1 and
-            (r.confidence < CONFIDENT or r.candidates[1][1] > 0.05)]
+            (r.confidence < CONFIDENT or r.candidates[1][1] >= RIVAL_RATIO * r.confidence)]
