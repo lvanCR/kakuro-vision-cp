@@ -13,7 +13,26 @@ Documentación técnica:
 - [`docs/fase2_solver.md`](docs/fase2_solver.md): modelo de CP formal (JSON → solución), variantes y análisis de tiempos.
 - [`data/README.md`](data/README.md): cómo armar y evaluar el dataset real.
 
-## Instalación
+## Inicio rápido con Docker (recomendado)
+
+Solo requiere [Docker](https://docs.docker.com/get-docker/) (en Windows y macOS, Docker Desktop abierto).
+
+```bash
+git clone git@github.com:lvanCR/-kakuro-vision-cp.git
+cd -- -kakuro-vision-cp
+docker compose up --build
+```
+
+Abrir **http://localhost:8000**, subir la foto de un Kakuro (o elegir uno de los ejemplos) y pulsar «Resolver». La página muestra la foto original, la solución superpuesta en perspectiva y una grilla limpia. Además indica si la solución es única, las pistas que se corrigieron y los tiempos. El puzzle y la solución se pueden descargar en JSON.
+
+- La primera construcción tarda unos minutos (descarga PyTorch para CPU; imagen de ~2 GB). Las siguientes arrancan en segundos.
+- `http://localhost:8000/?ejemplo=negro_foto` abre la página resolviendo un ejemplo (útil para demos).
+- `http://localhost:8000/docs`: documentación interactiva de la API (`POST /api/solve` con `file` y `model`).
+- Detener: `Ctrl+C`, o `docker compose down` si se inició con `docker compose up -d`.
+
+La imagen usa PyTorch para CPU, así que funciona en cualquier equipo. Una solución tarda ~0.2 s.
+
+## Instalación local (desarrollo)
 
 Requiere Python 3.12.
 
@@ -35,7 +54,13 @@ El modelo entrenado de dígitos (`models/digit_cnn.pt`) está incluido en el rep
 
 ## Uso
 
-### Sistema completo (foto → solución)
+### Interfaz web sin Docker
+
+```bash
+uvicorn src.api.app:app --port 8000
+```
+
+### Sistema completo por línea de comandos (foto → solución)
 
 ```bash
 python -m src.main ruta/a/foto.jpg

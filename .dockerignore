@@ -1,0 +1,16 @@
+.venv
+.git
+.pytest_cache
+**/__pycache__
+**/.ipynb_checkpoints
+outputs
+notebooks
+docs
+tests
+data/raw
+data/labels
+data/digits
+data/synthetic
+data/puzzles
+*.md
+!requirements*.txt

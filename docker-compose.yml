@@ -1,0 +1,8 @@
+services:
+  kakuro:
+    build: .
+    image: kakuro-vision-cp
+    container_name: kakuro-vision-cp
+    ports:
+      - "8000:8000"
+    restart: unless-stopped

@@ -1,0 +1,10 @@
+# Dependencias de la imagen Docker (torch para CPU se instala aparte, ver Dockerfile).
+# Se usa opencv-python-headless: el contenedor no abre ventanas.
+fastapi==0.142.0
+matplotlib==3.10.9
+numpy==2.4.4
+opencv-python-headless==5.0.0.93
+ortools==9.15.6755
+pillow==12.2.0
+python-multipart==0.0.32
+uvicorn==0.50.0
