@@ -10,9 +10,14 @@ __pycache__/
 outputs/*
 !outputs/.gitkeep
 
-# Pesos de la CNN (pueden ser pesados)
+# Pesos de la CNN: solo se versiona el modelo final (pequeño)
 models/*.pt
 models/*.pth
+!models/digit_cnn.pt
+
+# Datasets de dígitos generados (se regeneran con src.training.digit_dataset)
+data/digits/
+data/synthetic/
 
 # IDE / sistema
 .vscode/
