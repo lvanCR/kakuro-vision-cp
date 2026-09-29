@@ -86,7 +86,8 @@ def synthetic_cases(n: int, seed: int):
     fonts = available_fonts(FONTS_TEST)
     for k in range(n):
         img, data = make_sample(k, seed + k, fonts)
-        cond = {"estilo": data["render"]["style"], "origen": "foto" if data["render"]["photo"] else "digital"}
+        cond = {"estilo": data["render"]["style"], "origen": "foto" if data["render"]["photo"] else "digital",
+                "forma": "irregular" if data["render"].get("irregular") else "rectangular"}
         yield f"synth_{k:03d}", img, data, cond
 
 
