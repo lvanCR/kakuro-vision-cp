@@ -84,19 +84,31 @@ def line_profiles(warped: np.ndarray, k_h: int | None = None, k_v: int | None = 
 
 
 def estimate_period(profile: np.ndarray) -> float:
-    """Período de la retícula con un "peine" anclado en la línea más fuerte.
+    """Período de la retícula: el menor p cuya puntuación de peine es >= COMB_RATIO del máximo.
+
+    Los múltiplos del período real puntúan igual de alto (sus posiciones
+    también caen en líneas), por eso se elige el menor.
+    """
+    periods, scores = period_scores(profile)
+    if scores.max() <= 0:
+        return len(profile) / MIN_CELLS
+    ok = np.nonzero(scores >= COMB_RATIO * scores.max())[0]
+    return float(periods[ok[0]]) if ok.size else float(periods[int(np.argmax(scores))])
+
+
+def period_scores(profile: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Puntuación de "peine" de cada período candidato.
 
     Para cada período p se evalúa el perfil (dilatado) en ancla + k*p, solo
-    dentro del rango donde hay líneas; la línea más fuerte es con seguridad
-    una línea de la grilla, así que la fase queda fijada por ella. Los
-    múltiplos del período real puntúan igual de alto (sus posiciones también
-    caen en líneas): se elige el menor p con puntuación >= COMB_RATIO del máximo.
+    dentro del rango donde hay líneas, y se toma la mejor de varias anclas
+    (las líneas más fuertes).
     """
     L = len(profile)
     base = float(np.median(profile))
     d = np.clip(profile - base, 0, None)
+    periods = np.arange(max(4.0, L / MAX_CELLS), L / MIN_CELLS + 0.5, 0.5)
     if d.max() <= 0:
-        return L / MIN_CELLS
+        return periods, np.zeros_like(periods)
     active = np.nonzero(d >= 0.25 * d.max())[0]
     a0, a1 = int(active[0]), int(active[-1])
     # anclas: las líneas más fuertes. La más fuerte puede no ser de la grilla (el
@@ -104,7 +116,6 @@ def estimate_period(profile: np.ndarray) -> float:
     peaks = [i for i in range(1, L - 1) if d[i] > 0 and d[i] >= d[i - 1] and d[i] >= d[i + 1]]
     anchors = sorted(peaks, key=lambda i: -d[i])[:N_ANCHORS] or [int(np.argmax(d))]
     scores = []
-    periods = np.arange(max(4.0, L / MAX_CELLS), L / MIN_CELLS + 0.5, 0.5)
     # ventana fija para todos los períodos: una ventana proporcional a p favorecería
     # a los períodos grandes (atrapan más perfil) y duplicaría el período estimado
     window = max(2, int(0.006 * L))
@@ -118,9 +129,7 @@ def estimate_period(profile: np.ndarray) -> float:
             if len(pos) >= 2:
                 best = max(best, dil[pos].mean())
         scores.append(best)
-    scores = np.array(scores)
-    ok = np.nonzero(scores >= COMB_RATIO * scores.max())[0]
-    return float(periods[ok[0]]) if ok.size else float(periods[int(np.argmax(scores))])
+    return periods, np.array(scores)
 
 
 def fit_lattice(profile: np.ndarray) -> tuple[np.ndarray, float]:
