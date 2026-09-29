@@ -18,8 +18,8 @@ Documentación técnica:
 Solo requiere [Docker](https://docs.docker.com/get-docker/) (en Windows y macOS, Docker Desktop abierto).
 
 ```bash
-git clone git@github.com:lvanCR/-kakuro-vision-cp.git
-cd -- -kakuro-vision-cp
+git clone https://github.com/lvanCR/kakuro-vision-cp.git
+cd kakuro-vision-cp
 docker compose up --build
 ```
 
