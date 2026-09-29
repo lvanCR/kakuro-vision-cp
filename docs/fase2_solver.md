@@ -121,7 +121,10 @@ Aquí el solver resuelve un problema de **optimización**: elige la interpretaci
 }
 ```
 
+- `status`: estado de CP-SAT (`OPTIMAL`, `FEASIBLE`, `INFEASIBLE`, `UNKNOWN` si se agota el tiempo) o `INVALID_PUZZLE` si la validación de la sección 1 falla antes de modelar.
 - `solution`: matriz `rows × cols` con el dígito en celdas blancas y `null` en celdas de pista.
+- `conflicts`: si es `INFEASIBLE`, tramos cuyas sumas explican la infactibilidad (sección 5).
+- `errors` / `warnings`: problemas de validación, o reglas violadas según el verificador.
 - La Fase 3 combina esta salida con `geometry` del JSON de visión para dibujar los dígitos sobre la imagen rectificada y proyectarlos a la foto original con `H⁻¹`.
 
 **Verificador independiente:** una función separada del solver comprueba sumas y no-repetición en cada tramo. Se usa en los tests y en cada ejecución.
@@ -136,21 +139,50 @@ Aquí el solver resuelve un problema de **optimización**: elige la interpretaci
 - Tamaño del modelo: `|W|` variables enteras y `2|R|` restricciones (M1); M3 añade `9|W| + 9|R|` booleanos y `|R|` tablas.
 
 ### Experimentos
-1. **Instancias:** los puzzles del dataset (vía el JSON de ground truth, para aislar el solver de los errores de visión) más un conjunto de puzzles más grandes (15×15 a 30×30) escritos directamente en JSON, para obtener una curva de escalamiento.
-2. **Medidas por instancia y variante (M1, M2, M3, con y sin estrategia explícita):** tiempo de pared, ramas (`NumBranches`), conflictos (`NumConflicts`), tamaño del espacio de búsqueda inicial. Cada medición se repite varias veces (p. ej. 5) y se reportan media y desviación, con `num_workers` fijado para que sea reproducible.
-3. **Gráficas:** tiempo vs. número de celdas blancas (escala log); ramas por variante; comparación del tiempo del solver con el tiempo del pipeline de visión.
+Se ejecutan con `python -m src.eval.bench_solver`. Los resultados quedan en `outputs/bench/`: `solver_runs.csv`, `solver_summary.csv` y `solver_time.png`.
+
+1. **Instancias:**
+   - puzzles de prueba con solución única (`data/puzzles/`),
+   - etiquetas del dataset real (`data/labels/`), que se incluyen automáticamente cuando existan; así se aísla el solver de los errores de visión,
+   - puzzles sintéticos de 6×6 a 30×30, 3 semillas por tamaño (`src/eval/generate.py`), con ~60 % de celdas blancas, como los publicados.
+2. **Medidas por instancia, variante (M1, M2, M3) y estrategia (automática con 8 hilos / menor dominio con 1 hilo):** tiempo de pared, ramas, conflictos, tamaño del modelo y del espacio de búsqueda inicial (log10), y tiempo de la comprobación de unicidad. Se repite 3 veces y se reporta mediana y desviación. Límite: 20 s por resolución.
+3. **Gráfica:** tiempo vs. número de celdas blancas (escala log), una línea por variante, un panel por estrategia.
+
+**Limitación de las instancias sintéticas:** no tienen solución única garantizada. Se probaron dos métodos para forzarla y ninguno funcionó:
+- convertir en pista las celdas donde difieren dos soluciones: el puzzle se vacía en cascada;
+- volver a sortear sus dígitos: no converge en 500 iteraciones.
+
+Por eso el tiempo de la comprobación de unicidad solo se interpreta en instancias únicas (puzzles de prueba y dataset real). En las demás mide cuánto tarda en encontrarse la segunda solución.
+
+### Resultados preliminares (puzzles sintéticos, 3 repeticiones)
+
+| Variante | Búsqueda | Mediana | Máximo |
+|---|---|---|---|
+| M1 | automática | 91 ms | 3.1 s |
+| M1 | menor dominio | 73 ms | **> 20 s** (sin terminar) |
+| M2 | automática | 91 ms | 1.8 s |
+| M2 | menor dominio | 72 ms | 1.5 s |
+| M3 | automática | 138 ms | 1.8 s |
+| M3 | menor dominio | 130 ms | 1.3 s |
+
+Observaciones para el informe:
+- **M2 es la mejor variante en general.** La reducción de dominios cuesta casi nada y reduce el espacio de búsqueda inicial (p. ej. de 10^512 a 10^454 en un 30×30).
+- **Colas pesadas en M1:** con la búsqueda fija de menor dominio, M1 no resolvió `gen_25x25_s3` en 20 s en ninguna repetición, mientras que con la misma búsqueda M2 lo resolvió en 0.54 s y M3 en 0.86 s. Es el comportamiento típico de un problema NP-completo, y la reducción de dominios lo evita.
+- **M3 no compensa en tiempo:** propaga más (tabla de combinaciones), pero sus ~10 booleanos por celda y por tramo agregan un costo fijo que en estos tamaños pesa más que la poda.
+- **Costo fijo del paralelismo:** con 8 hilos hay un piso de ~15 ms (arranque de los workers) aun en puzzles triviales; con 1 hilo, los pequeños se resuelven en < 1 ms.
+- Todos los puzzles de hasta 30×30 (~530 variables) se resuelven en pocos segundos: el solver no es el cuello de botella del sistema.
 
 ---
 
 ## 8. Pruebas
 
-- Tests unitarios con puzzles pequeños hechos a mano, incluido el ejemplo de Wikipedia (solución conocida), independientes de la visión.
+- Tests unitarios con puzzles pequeños hechos a mano o generados (`data/puzzles/`), independientes de la visión. Queda pendiente agregar el ejemplo de Wikipedia cuando se tenga la imagen.
 - Casos límite: tramo de longitud 9 (suma 45), tramo con suma mínima o máxima, puzzle rectangular, puzzle infactible a propósito (debe devolver `INFEASIBLE` y el diagnóstico de la sección 5).
 - Test de unicidad: un puzzle con dos soluciones debe devolver `unique: false`.
 
 ---
 
-## 9. Estructura de módulos sugerida
+## 9. Estructura de módulos (implementada)
 
 ```
 src/
@@ -160,13 +192,15 @@ src/
     model.py        # construcción de M1/M2/M3 y modo de corrección
     solve.py        # ejecución, unicidad, diagnóstico, salida JSON
     verify.py       # verificador independiente
+    __main__.py     # línea de comandos: python -m src.solver PUZZLE.json
   eval/
+    generate.py     # generador de puzzles sintéticos
     bench_solver.py # experimentos de la sección 7
 tests/
-  test_solver.py
+  test_parse.py, test_combos.py, test_solver.py, test_generate.py
 ```
 
-**Dependencias previstas:** `ortools`.
+**Dependencias:** `ortools` (y `matplotlib` para la gráfica del benchmark).
 
 ---
 
