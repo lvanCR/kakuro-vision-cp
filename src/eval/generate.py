@@ -7,6 +7,9 @@
    la heurística de menor dominio).
 3. Pistas: la suma de cada tramo según el relleno.
 
+Las filas y columnas del borde que quedan sin celdas blancas se recortan, por
+lo que el tamaño final puede ser menor que el pedido.
+
 La unicidad de la solución NO está garantizada: con relleno aleatorio casi
 ningún puzzle mediano o grande resulta único, y ni convertir en pista las
 celdas ambiguas (el puzzle se vacía en cascada) ni volver a sortear sus dígitos
@@ -81,6 +84,15 @@ def random_pattern(rows: int, cols: int, rng: random.Random, black_ratio: float 
     return white
 
 
+def _trim(white: Pattern) -> Pattern:
+    """Quita las filas/columnas del borde sin celdas blancas (conserva una de pistas arriba e izquierda)."""
+    rows = [i for i, r in enumerate(white) if any(r)]
+    cols = [j for j in range(len(white[0])) if any(r[j] for r in white)]
+    if not rows:
+        return white
+    return [r[cols[0] - 1:cols[-1] + 1] for r in white[rows[0] - 1:rows[-1] + 1]]
+
+
 def random_fill(white: Pattern, rng: random.Random) -> dict[Cell, int] | None:
     runs = _runs(white)
     cell_runs: dict[Cell, list[int]] = {}
@@ -133,7 +145,7 @@ def make_puzzle(rows: int, cols: int, seed: int, black_ratio: float = 0.2) -> di
     """Puzzle en el formato JSON de la Fase 1, con la solución en `expected`."""
     rng = random.Random(seed)
     for _ in range(100):
-        white = random_pattern(rows, cols, rng, black_ratio)
+        white = _trim(random_pattern(rows, cols, rng, black_ratio))
         values = random_fill(white, rng) if sum(map(sum, white)) >= 4 else None
         if values is not None:
             data = _to_json(white, values)
