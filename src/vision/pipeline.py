@@ -10,12 +10,13 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import cv2
 import numpy as np
 
-from .cells import cell_features, classify, infer_clues, structure_warnings
+from .cells import WHITE, cell_features, classify, enforce_runs, infer_clues, structure_warnings, trim
 from .digits import clue_digits
-from .grid import detect_grid
-from .locate import find_corners, warp
+from .grid import Grid
+from .locate import rectify
 from .ocr_cnn import DigitReader
 from .preprocess import binarize, enhance, load_gray, normalize_size, to_gray
 from .validate import read_clue, select_uncertain
@@ -37,19 +38,26 @@ def _run_lengths(white: np.ndarray, i: int, j: int, direction: str) -> int:
 
 
 def process_gray(image: np.ndarray, reader: DigitReader, source: str = "") -> VisionResult:
-    """Pipeline sobre una imagen en escala de grises o BGR."""
+    """Pipeline sobre una imagen en escala de grises o BGR (el color ayuda a separar el fondo)."""
     t = {}
     t0 = time.perf_counter()
     gray, scale = normalize_size(to_gray(image))
-    corners, method = find_corners(binarize(enhance(gray)))
-    warped, H = warp(gray, corners)
+    rect = rectify(gray, binarize(enhance(gray)))
+    corners, method, warped, H, grid = rect.corners, rect.method, rect.warped, rect.H, rect.grid
+    color_w = None
+    if image.ndim == 3:
+        color_n = cv2.resize(image, (gray.shape[1], gray.shape[0]), interpolation=cv2.INTER_AREA)
+        color_w = cv2.warpPerspective(color_n, H, (warped.shape[1], warped.shape[0]), flags=cv2.INTER_LINEAR,
+                                      borderMode=cv2.BORDER_REPLICATE)
     t["locate_s"] = time.perf_counter() - t0
 
     t0 = time.perf_counter()
-    grid = detect_grid(warped)
-    white = classify(cell_features(warped, grid))
-    structure = infer_clues(white)
-    warnings = structure_warnings(white)
+    kind = enforce_runs(classify(cell_features(warped, grid, color_w)))
+    kind, rs, cs = trim(kind)
+    grid = Grid(grid.xs[cs.start:cs.stop + 1], grid.ys[rs.start:rs.stop + 1], grid.score_rows, grid.score_cols)
+    white = kind == WHITE
+    structure = infer_clues(kind)
+    warnings = structure_warnings(kind)
     t["grid_cells_s"] = time.perf_counter() - t0
 
     t0 = time.perf_counter()
@@ -99,6 +107,7 @@ def process_gray(image: np.ndarray, reader: DigitReader, source: str = "") -> Vi
         },
         "vision": {
             "corner_method": method,
+            "rectification_candidates": [{"method": m, "quality": q, "area": a} for m, q, a in rect.candidates],
             "warnings": warnings,
             "raw_readings": [{"row": r.row, "col": r.col, "dir": r.direction, "raw": r.raw,
                               "value": r.value, "confidence": round(r.confidence, 4)} for r in readings],

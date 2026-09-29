@@ -13,7 +13,7 @@ def test_order_corners():
     assert order_corners(pts).tolist() == [[10, 10], [90, 10], [90, 90], [10, 90]]
 
 
-@pytest.mark.parametrize("index", [0, 1, 2, 3, 5, 6])      # digitales y fotos, estilos A y B
+@pytest.mark.parametrize("index", [0, 2, 4, 5, 7, 9])      # rectangulares: digitales y fotos, estilos A y B
 def test_corners_synthetic(index):
     img, data = make_sample(index, 1000 + index, FONTS)
     gray, scale = normalize_size(to_gray(img))
