@@ -74,6 +74,10 @@ def read_clue(probs: np.ndarray | list[np.ndarray], row: int, col: int, directio
     if not reading.candidates:
         # ninguna lectura válida: cualquier suma posible del tramo, con probabilidad baja
         reading.candidates = [(v, UNKNOWN_P) for v in range(lo, hi + 1)]
+    if not reading.candidates:
+        # tramo imposible (p. ej. más de 9 celdas por un error de visión): se conserva
+        # la lectura cruda y el validador del solver informará el problema
+        reading.candidates = [(reading.raw or 0, UNKNOWN_P)]
     return reading
 
 

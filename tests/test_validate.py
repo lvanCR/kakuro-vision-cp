@@ -50,6 +50,11 @@ def test_unreadable_gives_all_valid_sums():
     assert [v for v, _ in r.candidates] == list(range(3, 18))
 
 
+def test_impossible_run_does_not_crash():
+    r = read_clue(onehot(4, 5), 0, 0, "right", 11)     # tramo de 11 celdas: ninguna suma posible
+    assert r.value == 45 and r.confidence < CONFIDENT
+
+
 def test_select_uncertain_global_check():
     a = ClueReading(1, 0, "right", 2, [(3, 0.99), (8, 0.005)])
     b = ClueReading(0, 1, "down", 2, [(4, 0.99), (9, 0.004)])
