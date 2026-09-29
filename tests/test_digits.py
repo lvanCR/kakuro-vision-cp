@@ -39,7 +39,10 @@ def test_ambiguous_blob_gives_two_hypotheses():
     cv2.rectangle(norm, (70, 15), (83, 40), 255, -1)
     cv2.line(norm, (68, 27), (70, 27), 255, 2)             # unidos por un puente fino
     hyps = segment_hypotheses(norm, triangle_mask(100, 100, "right"))
-    assert sorted(len(h) for h in hyps) == [1, 2]
+    lengths = {len(h) for h in hyps}
+    assert lengths == {1, 2}                                # uno ancho y (varios cortes de) dos
+    # uno de los cortes cae en el puente entre los dos bloques
+    assert any(len(h) == 2 and 66 <= h[0][0] + h[0][2] <= 72 for h in hyps)
     # si la estructura exige dos dígitos, la lectura de uno se descarta
     assert all(len(h) == 2 for h in segment_hypotheses(norm, triangle_mask(100, 100, "right"), 2))
 

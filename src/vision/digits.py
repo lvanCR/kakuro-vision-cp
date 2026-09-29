@@ -89,12 +89,42 @@ def _split_wide(norm: np.ndarray, box: list[int], force: bool = False) -> list[l
     cut = lo + int(np.argmin(cols[lo:hi]))
     if not must and cols[cut] > SPLIT_VALLEY * cols.max():
         return [box]
+    return _split_at(norm, box, cut) or [box]
+
+
+def _split_at(norm: np.ndarray, box: list[int], cut: int) -> list[list[int]] | None:
+    """Parte la caja en la columna `cut` (relativa); cada mitad se recorta a su altura."""
+    x, y, w, h, area = box
     parts = []
     for x0, x1 in ((0, cut), (cut, w)):
         rows = np.nonzero(norm[y:y + h, x + x0:x + x1].max(axis=1) > 0)[0]
         if rows.size and x1 > x0:
             parts.append([x + x0, y + int(rows[0]), x1 - x0, int(rows[-1] - rows[0] + 1), area // 2])
-    return parts if len(parts) == 2 else [box]
+    return parts if len(parts) == 2 else None
+
+
+def _split_candidates(norm: np.ndarray, box: list[int], max_cuts: int = 3) -> list[list[list[int]]]:
+    """Separaciones posibles de un componente: en los mínimos locales de la proyección y en el centro.
+
+    El mínimo global no siempre es la frontera entre dígitos (p. ej. el hueco
+    interior de un "4"), así que se proponen varios cortes y decide la CNN.
+    """
+    x, y, w, h, area = box
+    if w < 6:
+        return []
+    cols = norm[y:y + h, x:x + w].astype(np.float64).sum(axis=0)
+    lo, hi = int(0.2 * w), int(0.8 * w)
+    minima = [c for c in range(max(lo, 1), min(hi, w - 1)) if cols[c] <= cols[c - 1] and cols[c] <= cols[c + 1]]
+    cuts = sorted(minima, key=lambda c: cols[c])[:max_cuts] + [w // 2]
+    splits, seen = [], set()
+    for c in cuts:
+        if c in seen or any(abs(c - s) <= 1 for s in seen):
+            continue
+        seen.add(c)
+        parts = _split_at(norm, box, c)
+        if parts:
+            splits.append(parts)
+    return splits
 
 
 def _components(norm: np.ndarray, mask: np.ndarray) -> list[list[int]]:
@@ -156,16 +186,15 @@ def segment_hypotheses(norm: np.ndarray, mask: np.ndarray,
     comps = _components(norm, mask)
     if not comps:
         return [[]]
-    primary = [s for b in comps for s in _split_wide(norm, b)]
-    if len(primary) < min_digits:
-        primary = _split_wide(norm, comps[0], force=True)
-    primary = primary[:MAX_DIGITS]
+    if len(comps) >= MAX_DIGITS:
+        return [_finish(comps[:MAX_DIGITS])]      # ya son dos dígitos: no se parte ninguno
+    primary = _split_wide(norm, comps[0], force=min_digits >= 2)
     hyps = [_finish(primary)]
     if len(comps) == 1:
         box = comps[0]
         alternatives = [[box]]
         if box[2] >= AMBIGUOUS_ASPECT * box[3]:
-            alternatives.append(_split_wide(norm, box, force=True))
+            alternatives += _split_candidates(norm, box)
         for alt in alternatives:
             h = _finish(alt)
             if min_digits <= len(h) <= MAX_DIGITS and h not in hyps:
