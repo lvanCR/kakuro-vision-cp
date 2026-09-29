@@ -1,1 +1,13 @@
---extra-index-url https://download.pytorch.org/whl/cu124fastapi==0.142.0 httpx==0.28.1 matplotlib==3.10.9 numpy==2.4.4 opencv-python==5.0.0.93 ortools==9.15.6755 pillow==12.2.0 pytest==9.1.1 python-multipart==0.0.32 scipy==1.17.1 torch==2.6.0+cu124 uvicorn==0.50.0
+--extra-index-url https://download.pytorch.org/whl/cu124
+fastapi==0.142.0
+httpx==0.28.1
+matplotlib==3.10.9
+numpy==2.4.4
+opencv-python==5.0.0.93
+ortools==9.15.6755
+pillow==12.2.0
+pytest==9.1.1
+python-multipart==0.0.32
+scipy==1.17.1
+torch==2.6.0+cu124
+uvicorn==0.50.0
