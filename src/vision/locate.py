@@ -15,10 +15,19 @@ WARP_SIDE = 1200            # lado mayor de la imagen rectificada (px)
 
 
 def order_corners(pts: np.ndarray) -> np.ndarray:
-    """Ordena 4 puntos como sup-izq, sup-der, inf-der, inf-izq."""
+    """Ordena 4 puntos como sup-izq, sup-der, inf-der, inf-izq.
+
+    Se ordenan por ángulo alrededor del centroide (sentido horario en la
+    imagen) y se empieza por el de menor x+y. A diferencia de elegir cada
+    esquina por separado con sumas y diferencias, nunca repite un punto ni
+    produce un orden reflejado cuando el cuadrilátero está muy torcido.
+    """
     pts = np.asarray(pts, np.float32).reshape(4, 2)
-    s, d = pts.sum(axis=1), pts[:, 0] - pts[:, 1]
-    return np.array([pts[np.argmin(s)], pts[np.argmax(d)], pts[np.argmax(s)], pts[np.argmin(d)]], np.float32)
+    c = pts.mean(axis=0)
+    ang = np.arctan2(pts[:, 1] - c[1], pts[:, 0] - c[0])      # y hacia abajo: creciente = horario
+    pts = pts[np.argsort(ang)]
+    start = int(np.argmin(pts.sum(axis=1)))
+    return np.roll(pts, -start, axis=0).astype(np.float32)
 
 
 def find_corners(binary: np.ndarray) -> tuple[np.ndarray, str]:
