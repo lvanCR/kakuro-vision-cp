@@ -23,6 +23,7 @@ SPLIT_ASPECT = 0.9          # ancho/alto a partir del cual una caja puede conten
                             # (dígitos sueltos con valle: <= 0.83; "15" pegado en Candara: 0.95)
 FORCE_SPLIT_ASPECT = 1.25   # ancho/alto a partir del cual contiene dos dígitos con seguridad
 SPLIT_VALLEY = 0.4          # valle máximo (relativo al pico) de la proyección para separar
+AMBIGUOUS_ASPECT = 0.6      # desde este ancho/alto, un componente único se lee también como dos dígitos
 MAX_DIGITS = 2
 
 
@@ -96,13 +97,8 @@ def _split_wide(norm: np.ndarray, box: list[int], force: bool = False) -> list[l
     return parts if len(parts) == 2 else [box]
 
 
-def segment_digits(norm: np.ndarray, mask: np.ndarray, min_digits: int = 1) -> list[tuple[int, int, int, int]]:
-    """Cajas (x, y, w, h) de los dígitos, de izquierda a derecha.
-
-    `min_digits` = 2 cuando la estructura garantiza una suma de dos dígitos
-    (tramos de 4 o más celdas suman al menos 10); si solo se halló una caja,
-    se separa por su valle.
-    """
+def _components(norm: np.ndarray, mask: np.ndarray) -> list[list[int]]:
+    """Componentes de tinta que pueden ser dígitos (sin restos de líneas ni ruido)."""
     h_cell, w_cell = norm.shape
     vals = norm[mask]
     if vals.size == 0 or vals.max() < 40:
@@ -129,12 +125,52 @@ def segment_digits(norm: np.ndarray, mask: np.ndarray, min_digits: int = 1) -> l
     # los dígitos de un número tienen alturas parecidas (salvo numerales de estilo antiguo)
     tallest = max(b[3] for b in boxes)
     boxes = [b for b in boxes if b[3] >= 0.5 * tallest]
-    boxes = [s for b in boxes for s in _split_wide(norm, b)]
-    if len(boxes) < min_digits:
-        boxes = _split_wide(norm, boxes[0], force=True)
     if len(boxes) > MAX_DIGITS:
         boxes = sorted(boxes, key=lambda b: b[4], reverse=True)[:MAX_DIGITS]
-    return [tuple(b[:4]) for b in sorted(boxes, key=lambda b: b[0])]
+    return sorted(boxes, key=lambda b: b[0])
+
+
+def _finish(boxes: list[list[int]]) -> list[tuple[int, int, int, int]]:
+    return [tuple(int(v) for v in b[:4]) for b in sorted(boxes, key=lambda b: b[0])]
+
+
+def segment_digits(norm: np.ndarray, mask: np.ndarray, min_digits: int = 1) -> list[tuple[int, int, int, int]]:
+    """Cajas (x, y, w, h) de los dígitos, de izquierda a derecha (segmentación principal).
+
+    `min_digits` = 2 cuando la estructura garantiza una suma de dos dígitos
+    (tramos de 4 o más celdas suman al menos 10); si solo se halló una caja,
+    se separa por su valle.
+    """
+    return segment_hypotheses(norm, mask, min_digits)[0] if _components(norm, mask) else []
+
+
+def segment_hypotheses(norm: np.ndarray, mask: np.ndarray,
+                       min_digits: int = 1) -> list[list[tuple[int, int, int, int]]]:
+    """Segmentación principal y alternativas cuando un componente es ambiguo.
+
+    Un componente único y ancho puede ser un dígito ancho (un "4" en ciertas
+    fuentes) o dos dígitos pegados ("15" en Candara): la geometría sola no lo
+    decide. Se devuelven ambas lecturas; la CNN y las reglas del Kakuro eligen
+    (validate.read_clue). La primera hipótesis es la de las reglas geométricas.
+    """
+    comps = _components(norm, mask)
+    if not comps:
+        return [[]]
+    primary = [s for b in comps for s in _split_wide(norm, b)]
+    if len(primary) < min_digits:
+        primary = _split_wide(norm, comps[0], force=True)
+    primary = primary[:MAX_DIGITS]
+    hyps = [_finish(primary)]
+    if len(comps) == 1:
+        box = comps[0]
+        alternatives = [[box]]
+        if box[2] >= AMBIGUOUS_ASPECT * box[3]:
+            alternatives.append(_split_wide(norm, box, force=True))
+        for alt in alternatives:
+            h = _finish(alt)
+            if min_digits <= len(h) <= MAX_DIGITS and h not in hyps:
+                hyps.append(h)
+    return hyps
 
 
 def to_canvas(norm: np.ndarray, box: tuple[int, int, int, int]) -> np.ndarray:
@@ -163,7 +199,8 @@ def min_digits_for(run_length: int) -> int:
 
 
 def clue_digits(warped: np.ndarray, box: tuple[int, int, int, int], direction: str,
-                run_length: int = 0) -> list[np.ndarray]:
-    """Lienzos de los dígitos de la pista de una celda en la dirección dada."""
+                run_length: int = 0) -> list[list[np.ndarray]]:
+    """Lienzos de los dígitos de la pista, uno por hipótesis de segmentación."""
     norm, mask = extract_region(warped, box, direction)
-    return [to_canvas(norm, b) for b in segment_digits(norm, mask, min_digits_for(run_length))]
+    return [[to_canvas(norm, b) for b in hyp]
+            for hyp in segment_hypotheses(norm, mask, min_digits_for(run_length))]

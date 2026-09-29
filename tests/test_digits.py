@@ -2,8 +2,8 @@ import cv2
 import numpy as np
 import pytest
 
-from src.vision.digits import (DIGIT_SIZE, extract_region, min_digits_for, segment_digits, to_canvas,
-                               triangle_mask)
+from src.vision.digits import (DIGIT_SIZE, extract_region, min_digits_for, segment_digits, segment_hypotheses,
+                               to_canvas, triangle_mask)
 
 
 def draw_clue(text: str, direction: str, dark_bg: bool, size: int = 120) -> np.ndarray:
@@ -30,6 +30,18 @@ def test_segment_count(text, direction, dark_bg):
     norm, mask = extract_region(cell, (0, 0, cell.shape[1], cell.shape[0]), direction)
     assert norm[mask].mean() < 60             # fondo normalizado a oscuro en ambas polaridades
     assert len(segment_digits(norm, mask)) == len(text)
+
+
+def test_ambiguous_blob_gives_two_hypotheses():
+    """Un componente ancho puede ser un dígito ancho o dos pegados: se generan ambas lecturas."""
+    norm = np.zeros((100, 100), np.uint8)
+    cv2.rectangle(norm, (55, 15), (68, 40), 255, -1)
+    cv2.rectangle(norm, (70, 15), (83, 40), 255, -1)
+    cv2.line(norm, (68, 27), (70, 27), 255, 2)             # unidos por un puente fino
+    hyps = segment_hypotheses(norm, triangle_mask(100, 100, "right"))
+    assert sorted(len(h) for h in hyps) == [1, 2]
+    # si la estructura exige dos dígitos, la lectura de uno se descarta
+    assert all(len(h) == 2 for h in segment_hypotheses(norm, triangle_mask(100, 100, "right"), 2))
 
 
 def test_forced_split_with_run_length():

@@ -71,13 +71,15 @@ def process_gray(image: np.ndarray, reader: DigitReader, source: str = "") -> Vi
                 if cell[d] is None:
                     continue
                 length = _run_lengths(white, i, j, d)
-                digits = clue_digits(warped, grid.cell_box(i, j), d, length)
-                items.append((i, j, d, length, len(canvases), len(digits)))
-                canvases += digits
-    probs = reader.probabilities(canvases)
+                spans = []                      # (inicio, n) de cada hipótesis de segmentación
+                for hyp in clue_digits(warped, grid.cell_box(i, j), d, length):
+                    spans.append((len(canvases), len(hyp)))
+                    canvases += hyp
+                items.append((i, j, d, length, spans))
+    probs = reader.probabilities(canvases)       # todas las hipótesis en un solo lote
     readings = []
-    for i, j, d, length, start, n in items:
-        r = read_clue(probs[start:start + n], i, j, d, length)
+    for i, j, d, length, spans in items:
+        r = read_clue([probs[s:s + n] for s, n in spans], i, j, d, length)
         structure[i][j][d] = r.value
         readings.append(r)
     uncertain = select_uncertain(readings)

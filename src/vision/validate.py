@@ -1,7 +1,8 @@
 """Paso 11 del pipeline: composición del número y validación con reglas de Kakuro.
 
-Para cada pista se combinan los candidatos top-k de cada dígito (probabilidad
-conjunta = producto) y se descartan las lecturas imposibles:
+Para cada pista (y cada hipótesis de segmentación) se combinan los candidatos
+top-k de cada dígito (probabilidad conjunta = producto) y se descartan las
+lecturas imposibles:
 - suma fuera de [L(L+1)/2, L(19-L)/2] para un tramo de L celdas,
 - número de dos dígitos que empieza por 0.
 Si la mejor lectura válida tiene poca confianza, la pista se marca como
@@ -43,22 +44,33 @@ class ClueReading:
         return self.candidates[0][1]
 
 
-def read_clue(probs: np.ndarray, row: int, col: int, direction: str, length: int) -> ClueReading:
-    """Combina las probabilidades de los dígitos (n, 10) en lecturas válidas del número."""
+def read_clue(probs: np.ndarray | list[np.ndarray], row: int, col: int, direction: str,
+              length: int) -> ClueReading:
+    """Combina las probabilidades de los dígitos en lecturas válidas del número.
+
+    `probs` es una matriz (n, 10) o una lista de ellas, una por hipótesis de
+    segmentación (p. ej. "un dígito ancho" frente a "dos dígitos pegados"). La
+    probabilidad de una lectura es el producto de las de sus dígitos: la CNN
+    está segura con dígitos bien segmentados y duda con recortes mal partidos o
+    fusionados, así que la hipótesis correcta obtiene la mayor probabilidad.
+    """
+    hypotheses = [probs] if isinstance(probs, np.ndarray) else list(probs)
+    hypotheses = [h for h in hypotheses if len(h)]
     lo, hi = sum_bounds(length)
     reading = ClueReading(row, col, direction, length)
-    if len(probs):
-        reading.raw = int("".join(str(int(p.argmax())) for p in probs))
-        tops = [np.argsort(p)[::-1][:TOP_K] for p in probs]
-        cands = {}
+    cands: dict[int, float] = {}
+    for k_hyp, hp in enumerate(hypotheses):
+        if k_hyp == 0:
+            reading.raw = int("".join(str(int(p.argmax())) for p in hp))
+        tops = [np.argsort(p)[::-1][:TOP_K] for p in hp]
         for digits in product(*tops):
             if len(digits) > 1 and digits[0] == 0:
                 continue
             value = int("".join(map(str, digits)))
             if lo <= value <= hi:
-                p = float(np.prod([probs[k][d] for k, d in enumerate(digits)]))
+                p = float(np.prod([hp[k][d] for k, d in enumerate(digits)]))
                 cands[value] = max(p, cands.get(value, 0.0))
-        reading.candidates = sorted(cands.items(), key=lambda t: -t[1])[:MAX_CANDIDATES]
+    reading.candidates = sorted(cands.items(), key=lambda t: -t[1])[:MAX_CANDIDATES]
     if not reading.candidates:
         # ninguna lectura válida: cualquier suma posible del tramo, con probabilidad baja
         reading.candidates = [(v, UNKNOWN_P) for v in range(lo, hi + 1)]

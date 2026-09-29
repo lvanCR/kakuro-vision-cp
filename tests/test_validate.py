@@ -33,6 +33,18 @@ def test_no_leading_zero():
     assert r.raw == 9                       # "09" se interpreta como 9 en crudo
 
 
+def test_hypotheses_choose_valid_reading():
+    """Un "4" ancho partido en dos se lee "41" (imposible en un tramo de 2); la lectura de un dígito gana."""
+    split = onehot(4, 1, p=0.9)
+    single = onehot(4)
+    r = read_clue([split, single], 0, 0, "right", 2)
+    assert r.raw == 41 and r.value == 4
+    # dos dígitos pegados: la hipótesis separada ("15") supera al recorte fusionado mal leído
+    fused = np.full((1, 10), 0.1)
+    r = read_clue([fused, onehot(1, 5)], 0, 0, "right", 3)
+    assert r.value == 15
+
+
 def test_unreadable_gives_all_valid_sums():
     r = read_clue(np.zeros((0, 10)), 0, 0, "right", 2)
     assert [v for v, _ in r.candidates] == list(range(3, 18))
