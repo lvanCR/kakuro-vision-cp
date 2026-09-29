@@ -239,27 +239,41 @@ Las dos métricas en negrita no aparecen en el paper y son las más relevantes: 
 
 ### 5.1 Resultados en imágenes sintéticas
 
-`python -m src.eval.eval_vision --synthetic 200`. Las imágenes se generan con `src/eval/render.py`:
+`python -m src.eval.eval_vision --synthetic 200`. Las imágenes se generan en color con `src/eval/render.py`:
 - con fuentes **no usadas** para entrenar la CNN;
 - 2/3 de estilo B y 1/3 de estilo A;
-- 3/4 simulan una foto: perspectiva, gradiente de iluminación, sombra, desenfoque, ruido y JPEG.
+- 3/4 simulan una foto: perspectiva, gradiente y tinte de iluminación, sombra, desenfoque, ruido y JPEG;
+- 2/5 son **irregulares**: los bloques exteriores no forman parte del puzzle y se pintan con un fondo amarillo, gris, celeste, beige, verde o blanco, sin líneas.
 
-| Métrica | Todas (200) | Estilo A (66) | Estilo B (134) | Digital (50) | Foto (150) |
+| Métrica | Todas (200) | Rectangulares (120) | Irregulares (80) | Digital (50) | Foto (150) |
 |---|---|---|---|---|---|
-| Esquinas (error < 2 %) | 100 % (error medio 0.18 %) | | | | |
-| Tamaño de grilla | 100 % | 100 % | 100 % | 100 % | 100 % |
-| Clasificación de celdas | 100 % | 100 % | 100 % | 100 % | 100 % |
-| Dígitos | 99.83 % | 99.85 % | 99.82 % | 99.81 % | 99.83 % |
-| Pistas (lectura cruda) | 99.80 % | 99.80 % | 99.80 % | 99.83 % | 99.79 % |
-| Pistas (tras validación) | 99.84 % | 99.86 % | 99.83 % | 99.83 % | 99.85 % |
-| **JSON exacto** | **97.5 %** | 98.5 % | 97.0 % | 98.0 % | 97.3 % |
-| **Solución correcta (e2e)** | **98.0 %** | 98.5 % | 97.8 % | 98.0 % | 98.0 % |
+| Tamaño de grilla | 90.5 % | 99.2 % | 77.5 % | 100 % | 87.3 % |
+| Clasificación de celdas* | 99.54 % | 99.39 % | 99.81 % | 99.93 % | 99.38 % |
+| Dígitos* | 98.63 % | 98.04 % | 99.77 % | 100 % | 98.08 % |
+| Pistas (tras validación) | 90.62 % | 97.93 % | 79.47 % | 99.49 % | 87.42 % |
+| **JSON exacto** | **80.0 %** | 92.5 % | 61.3 % | 88.0 % | 77.3 % |
+| **Solución correcta (e2e)** | **84.0 %** | **95.0 %** | **67.5 %** | 96.0 % | 80.0 % |
 
-Tiempo medio: visión 0.13 s y solver 0.08 s por imagen, con la GPU usada por la CNN.
+\* Sobre las imágenes cuyo tamaño de grilla se detectó bien. Las métricas de pistas, JSON y e2e cuentan como fallo toda imagen con el tamaño mal detectado.
+
+Tiempo medio: ~1 s de visión (casi todo en la localización, que evalúa varios candidatos) y ~0.1 s de solver por imagen.
+
+**Comparación con la versión anterior (solo grillas rectangulares).** Sobre las mismas 120 imágenes, la versión anterior detectaba bien el tamaño en 120 y resolvía 115; la actual detecta 119 y resuelve 114. Las diferencias son lecturas de dígitos en fotos borrosas, que cambian según el recorte exacto (2 mejoras y 3 empeoramientos). La versión anterior no resolvía **ninguna** grilla irregular, porque suponía un borde rectangular.
+
+**Imágenes reales de prueba** (puzzles tomados de internet, no incluidos en el repositorio): una grilla irregular sobre fondo amarillo con marco, una captura con la grilla tocando el borde y pistas medio blancas medio negras, y dos puzzles de pistas grises con diagonal punteada. Los cuatro se resuelven con solución única.
+
+**Limitación principal:** fotos de grillas irregulares donde la hoja no se distingue de la mesa (sin ningún cuadrilátero de referencia). La rectificación depende entonces solo de las líneas de la propia grilla, que es el caso más frágil.
 
 **Estas cifras son una cota superior.** Las imágenes sintéticas no reproducen fuentes de periódico, papel arrugado, reflejos ni distorsión de lente. Las métricas que cuentan para el informe son las del dataset real (`--images data/raw`).
 
 ### 5.2 Desviaciones respecto al plan (y por qué)
+
+- **Grillas generales (irregulares, con márgenes o marcos, o que tocan el borde de la imagen).** El diseño original suponía que la grilla tiene un contorno rectangular que coincide con su borde. Las imágenes reales de prueba mostraron que no siempre es así, y se cambió a:
+  1. **Varios candidatos de rectificación**: contornos cuadriláteros, el cuadrilátero de las líneas más externas de la grilla (Hough), la imagen completa y el respaldo del paper. Se elige, entre los que dan una retícula nítida, el que explica más celdas. Después se rectifica de nuevo solo la extensión de la retícula, para ganar resolución.
+  2. **Retícula con período, fase y extensión** en cada eje. El período sale de un "peine" anclado en las líneas más fuertes. Las líneas se siguen tolerando hasta 3 líneas invisibles seguidas (entre celdas negras), y se añade una celda de borde si la grilla toca el límite de la imagen.
+  3. **Tres clases de celda**: blanca, pista o **fuera del puzzle**. Una celda es blanca si es clara como el papel, sin color, sin diagonal y **cerrada por líneas en sus cuatro lados**. Se usa el color: un fondo amarillo no es papel blanco.
+  4. **Reglas del Kakuro** para limpiar la estructura: todo tramo empieza tras una pista, y se recortan los bordes sin nada del puzzle.
+  5. **Hipótesis de segmentación**: un componente ambiguo se lee como un dígito ancho y como dos dígitos pegados (con varios cortes posibles). Elige la CNN, junto con los rangos de suma válidos.
 
 - **CNN de dígitos:**
   - Se entrena con recortes producidos por el **propio pipeline** sobre puzzles renderizados (`src/training/digit_dataset.py`), en lugar de dígitos sintéticos aislados. Así ve exactamente el desenfoque, la polaridad y el centrado de la inferencia.
