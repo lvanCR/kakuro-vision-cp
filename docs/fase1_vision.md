@@ -272,10 +272,24 @@ Tiempo medio: visión 0.13 s y solver 0.08 s por imagen, con la GPU usada por la
   - La iluminación se estima con una superficie cuadrática ajustada a las celdas claras.
 - **Esquinas:** se elige el cuadrilátero candidato **más pequeño**. En fotos, la hoja de papel también forma un cuadrilátero que contiene a la grilla.
 
-### 5.3 Pendiente
+### 5.3 Comparación con OCR preentrenados
+
+`python -m src.eval.ocr_baselines --n 60`. Los motores reciben **el mismo recorte**: el número localizado por nuestra segmentación, con trazo oscuro sobre fondo claro y ampliado a 64 px de alto. Así se compara solo el reconocimiento. Hay 1 308 pistas de 60 imágenes sintéticas, con fuentes no vistas por la CNN.
+
+| Motor | Exactitud por pista | Lecturas imposibles* | Tiempo |
+|---|---|---|---|
+| CNN propia | **100.00 %** | 0 % | 1.1 ms/pista |
+| EasyOCR 1.7.2 (CRAFT + CRNN, solo dígitos) | 95.41 % | 3.44 % | 5.0 ms/pista |
+| Tesseract 5 (`--psm 7`, solo dígitos) | pendiente (binario no instalado) | | |
+
+\* Suma fuera del rango posible para la longitud del tramo.
+
+Los errores típicos de EasyOCR son "11" leído como "41" o "1", "24" como "44" y "10" como "103": confunde el 1 con el 4 y agrega o pierde dígitos. Con un 95 % por pista y ~22 pistas por puzzle, solo ~0.954^22 ≈ 35 % de los puzzles se leerían completos. Esto justifica entrenar un reconocedor específico para el dominio.
+
+### 5.4 Pendiente
 
 - **Dataset real**: fotos y capturas (≥ 10) con sus etiquetas, y evaluación con `--images data/raw`. Ver `data/README.md`.
-- Comparación con OCR preentrenados (EasyOCR, Tesseract) como línea base. Requiere instalar paquetes y descargar modelos externos.
+- Tesseract en la tabla anterior: instalar el binario y volver a ejecutar `ocr_baselines`.
 
 ## 6. Riesgos y mitigaciones
 

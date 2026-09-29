@@ -76,6 +76,9 @@ python -m src.eval.eval_vision --images data/raw --labels data/labels
 # Benchmark del solver (tablas y gráfica en outputs/bench/)
 python -m src.eval.bench_solver
 
+# CNN propia vs OCR preentrenados (requiere requirements-baselines.txt)
+python -m src.eval.ocr_baselines --n 60
+
 # Utilidades
 python -m src.eval.render --n 40 --out data/synthetic          # imágenes sintéticas con su JSON
 python -m src.eval.generate 12 12 --seed 1 --out outputs/p.json # puzzle sintético

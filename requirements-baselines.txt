@@ -1,0 +1,13 @@
+# Dependencias opcionales para comparar con OCR preentrenados (src/eval/ocr_baselines.py).
+# EasyOCR se instala con --no-deps para no traer opencv-python-headless, que
+# sobrescribe el cv2 de opencv-python y deja sin ventanas a la opción --show:
+#   pip install -r requirements-baselines.txt
+#   pip install --no-deps easyocr==1.7.2
+# Tesseract además necesita su binario (Windows: instalador de UB Mannheim).
+scikit-image==0.26.0
+python-bidi==0.6.11
+PyYAML
+shapely==2.1.2
+pyclipper==1.4.0
+ninja==1.13.2
+pytesseract==0.3.13
