@@ -17,7 +17,7 @@ from .digits import clue_digits
 from .grid import detect_grid
 from .locate import find_corners, warp
 from .ocr_cnn import DigitReader
-from .preprocess import binarize, enhance, load_gray, normalize_size
+from .preprocess import binarize, enhance, load_gray, normalize_size, to_gray
 from .validate import read_clue, select_uncertain
 
 
@@ -36,10 +36,11 @@ def _run_lengths(white: np.ndarray, i: int, j: int, direction: str) -> int:
     return n
 
 
-def process_gray(gray_full: np.ndarray, reader: DigitReader, source: str = "") -> VisionResult:
+def process_gray(image: np.ndarray, reader: DigitReader, source: str = "") -> VisionResult:
+    """Pipeline sobre una imagen en escala de grises o BGR."""
     t = {}
     t0 = time.perf_counter()
-    gray, scale = normalize_size(gray_full)
+    gray, scale = normalize_size(to_gray(image))
     corners, method = find_corners(binarize(enhance(gray)))
     warped, H = warp(gray, corners)
     t["locate_s"] = time.perf_counter() - t0

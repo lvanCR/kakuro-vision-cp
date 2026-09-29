@@ -22,7 +22,7 @@ from src.eval.render import FONTS_TEST, FONTS_TRAIN, available_fonts, make_sampl
 from src.vision.digits import extract_region, min_digits_for, segment_digits, to_canvas
 from src.vision.grid import detect_grid
 from src.vision.locate import find_corners, warp
-from src.vision.preprocess import binarize, enhance, normalize_size
+from src.vision.preprocess import binarize, enhance, normalize_size, to_gray
 
 
 def run_length(grid: list[list[dict]], i: int, j: int, direction: str) -> int:
@@ -38,7 +38,7 @@ def digits_from_sample(args: tuple[int, int, str]) -> tuple[list[np.ndarray], li
     index, seed, group = args
     fonts = available_fonts(FONTS_TRAIN if group == "train" else FONTS_TEST)
     img, data = make_sample(index, seed, fonts)
-    gray, _ = normalize_size(img)
+    gray, _ = normalize_size(to_gray(img))
     corners, _ = find_corners(binarize(enhance(gray)))
     warped, _ = warp(gray, corners)
     grid = detect_grid(warped)

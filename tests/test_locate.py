@@ -3,7 +3,7 @@ import pytest
 
 from src.eval.render import FONTS_TEST, available_fonts, make_sample
 from src.vision.locate import find_corners, order_corners, warp
-from src.vision.preprocess import binarize, enhance, normalize_size
+from src.vision.preprocess import binarize, enhance, normalize_size, to_gray
 
 FONTS = available_fonts(FONTS_TEST)
 
@@ -16,7 +16,7 @@ def test_order_corners():
 @pytest.mark.parametrize("index", [0, 1, 2, 3, 5, 6])      # digitales y fotos, estilos A y B
 def test_corners_synthetic(index):
     img, data = make_sample(index, 1000 + index, FONTS)
-    gray, scale = normalize_size(img)
+    gray, scale = normalize_size(to_gray(img))
     corners, _ = find_corners(binarize(enhance(gray)))
     gt = np.array(data["render"]["corners"]) * scale
     side = max(np.ptp(gt[:, 0]), np.ptp(gt[:, 1]))
@@ -25,7 +25,7 @@ def test_corners_synthetic(index):
 
 def test_warp_keeps_aspect_ratio():
     img, data = make_sample(4, 1004, FONTS)          # digital
-    gray, scale = normalize_size(img)
+    gray, scale = normalize_size(to_gray(img))
     corners, _ = find_corners(binarize(enhance(gray)))
     warped, H = warp(gray, corners)
     h, w = warped.shape

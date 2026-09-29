@@ -5,7 +5,7 @@ from src.eval.render import FONTS_TEST, available_fonts, make_sample
 from src.vision.cells import cell_features, classify, diagonal_strength, infer_clues, structure_warnings
 from src.vision.grid import detect_grid
 from src.vision.locate import find_corners, warp
-from src.vision.preprocess import binarize, enhance, normalize_size
+from src.vision.preprocess import binarize, enhance, normalize_size, to_gray
 
 FONTS = available_fonts(FONTS_TEST)
 
@@ -24,7 +24,7 @@ def test_diagonal_strength_polarity():
 @pytest.mark.parametrize("index", [0, 2, 5, 12, 38])      # incluye los casos difíciles de iluminación
 def test_classification_synthetic(index):
     img, data = make_sample(index, 1000 + index, FONTS)
-    gray, _ = normalize_size(img)
+    gray, _ = normalize_size(to_gray(img))
     corners, _ = find_corners(binarize(enhance(gray)))
     warped, _ = warp(gray, corners)
     white = classify(cell_features(warped, detect_grid(warped)))

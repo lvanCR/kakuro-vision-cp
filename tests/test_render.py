@@ -1,4 +1,4 @@
-import random
+﻿import random
 
 import numpy as np
 
@@ -16,7 +16,7 @@ def test_render_digital_corners():
     img, corners = render_puzzle(data, "B", available_fonts(FONTS_TEST)[0], random.Random(0), cell=60)
     (x0, y0), (x1, _), (_, y2), _ = corners
     assert (x1 - x0, y2 - y0) == (data["cols"] * 60, data["rows"] * 60)
-    assert img.ndim == 2 and img.dtype == np.uint8
+    assert img.ndim == 3 and img.dtype == np.uint8
 
 
 def test_sample_is_deterministic_and_labeled():
@@ -25,6 +25,6 @@ def test_sample_is_deterministic_and_labeled():
     img2, d2 = make_sample(1, 42, fonts)
     assert np.array_equal(img1, img2) and d1 == d2
     assert d1["render"]["photo"] and len(d1["render"]["corners"]) == 4
-    h, w = img1.shape
+    h, w = img1.shape[:2]
     for x, y in d1["render"]["corners"]:
         assert 0 <= x < w and 0 <= y < h

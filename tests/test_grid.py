@@ -6,13 +6,13 @@ from src.eval.generate import make_puzzle
 from src.eval.render import FONTS_TEST, available_fonts, make_sample, render_puzzle, simulate_photo
 from src.vision.grid import detect_grid
 from src.vision.locate import find_corners, warp
-from src.vision.preprocess import binarize, enhance, normalize_size
+from src.vision.preprocess import binarize, enhance, normalize_size, to_gray
 
 FONTS = available_fonts(FONTS_TEST)
 
 
 def detect(img):
-    gray, _ = normalize_size(img)
+    gray, _ = normalize_size(to_gray(img))
     corners, _ = find_corners(binarize(enhance(gray)))
     warped, _ = warp(gray, corners)
     return detect_grid(warped), warped

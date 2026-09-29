@@ -18,6 +18,11 @@ def load_gray(path: str | Path) -> np.ndarray:
     return img
 
 
+def to_gray(img: np.ndarray) -> np.ndarray:
+    """Escala de grises a partir de BGR (o la misma imagen si ya es de un canal)."""
+    return cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
+
+
 def normalize_size(gray: np.ndarray, target: int = TARGET_SIDE) -> tuple[np.ndarray, float]:
     """Escala la imagen para que su lado mayor mida `target`. Devuelve (imagen, factor)."""
     scale = target / max(gray.shape)

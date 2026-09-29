@@ -34,7 +34,7 @@ from src.vision.digits import extract_region, min_digits_for, segment_digits, to
 from src.vision.grid import detect_grid
 from src.vision.locate import find_corners, warp
 from src.vision.ocr_cnn import DigitReader
-from src.vision.preprocess import binarize, enhance, normalize_size
+from src.vision.preprocess import binarize, enhance, normalize_size, to_gray
 
 CROP_HEIGHT = 64            # alto al que se amplía el recorte para los OCR genéricos
 TESSERACT_PATHS = [r"C:\Program Files\Tesseract-OCR\tesseract.exe",
@@ -104,7 +104,7 @@ def collect_clues(n: int, seed: int):
     clues, skipped = [], 0
     for k in range(n):
         img, data = make_sample(k, seed + k, fonts)
-        gray, _ = normalize_size(img)
+        gray, _ = normalize_size(to_gray(img))
         corners, _ = find_corners(binarize(enhance(gray)))
         warped, _ = warp(gray, corners)
         grid = detect_grid(warped)
