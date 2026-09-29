@@ -19,6 +19,9 @@ models/*.pth
 data/digits/
 data/synthetic/
 
+# Notebooks
+.ipynb_checkpoints/
+
 # IDE / sistema
 .vscode/
 .idea/

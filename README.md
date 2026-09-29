@@ -85,6 +85,23 @@ python -m src.eval.generate 12 12 --seed 1 --out outputs/p.json # puzzle sintét
 python -m src.eval.make_label data/raw/k01.jpg                 # borrador de etiqueta
 ```
 
+### Notebooks de presentación
+
+En `notebooks/` hay tres notebooks que **usan** los módulos de `src/` (no duplican código):
+
+| Notebook | Contenido |
+|---|---|
+| `01_pipeline_vision.ipynb` | Una imagen paso a paso: binarización, esquinas, rectificación, grilla, celdas, dígitos y JSON |
+| `02_modelo_cp.ipynb` | Modelo formal, variantes M1–M3, restricciones reificadas, diagnóstico y escalabilidad |
+| `03_resultados.ipynb` | Tablas y gráficas de evaluación para el informe |
+
+```bash
+pip install notebook
+jupyter notebook notebooks/
+```
+
+Se guardan sin salidas (diffs limpios en git): hay que ejecutarlos para ver las figuras.
+
 ### Reentrenar la CNN (opcional)
 
 ```bash
