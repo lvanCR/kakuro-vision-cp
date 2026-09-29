@@ -90,6 +90,18 @@ def rectify(gray: np.ndarray, binary: np.ndarray) -> Rectification:
     score, area, corners, method, warped, H, grid = max(
         good or results, key=lambda r: (r[6].rows * r[6].cols, r[1]))
     summary = [(r[3], round(r[0], 4), round(r[1])) for r in results]
+
+    # segunda pasada: rectificar solo la extensión de la retícula, con toda la
+    # resolución (si se eligió la hoja o la imagen completa, la grilla ocupaba
+    # menos píxeles y los dígitos quedaban más pequeños)
+    ext = np.array([[grid.xs[0], grid.ys[0]], [grid.xs[-1], grid.ys[0]],
+                    [grid.xs[-1], grid.ys[-1]], [grid.xs[0], grid.ys[-1]]], np.float32)
+    tight = cv2.perspectiveTransform(ext[None], np.linalg.inv(H))[0]
+    if cv2.contourArea(tight) < 0.9 * area:
+        warped2, H2 = warp(gray, tight)
+        grid2 = detect_grid(warped2)
+        if (grid2.rows, grid2.cols) == (grid.rows, grid.cols):
+            return Rectification(tight, method + "+ajuste", warped2, H2, grid2, summary)
     return Rectification(corners, method, warped, H, grid, summary)
 
 

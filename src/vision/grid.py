@@ -8,8 +8,9 @@ borde de la imagen sin línea exterior (capturas digitales).
 1. Se binariza y se conservan solo los trazos horizontales (o verticales)
    largos con una apertura morfológica; desaparecen dígitos y diagonales.
 2. La suma por fila (o columna) da un perfil con picos en las líneas.
-3. Período p: el menor desfase con autocorrelación alta. Los múltiplos de p
-   también la tienen alta (sus posiciones caen en líneas), por eso el menor.
+3. Período p: "peine" anclado en la línea más fuerte; el menor p cuya
+   puntuación es cercana al máximo (los múltiplos de p puntúan igual de alto
+   porque sus posiciones también caen en líneas).
 4. Fase: la que maximiza el perfil en phi + k*p.
 5. Extensión: el tramo continuo más largo de líneas fuertes; si a un lado
    queda sitio para una celda hasta el borde de la imagen, se añade (la
@@ -28,7 +29,10 @@ from scipy.ndimage import maximum_filter1d
 from .preprocess import binarize
 
 MIN_CELLS, MAX_CELLS = 3, 40
-AC_RATIO = 0.6              # autocorrelación mínima (relativa al máximo) para aceptar un período
+COMB_RATIO = 0.6            # puntuación mínima del peine (relativa al máximo) para aceptar un período
+                            # (el período real con líneas alternas débiles ~0.65-0.75; la mitad ~0.5)
+MAX_NORM = 1.5              # tope del factor de normalización de la nitidez por la extensión
+N_ANCHORS = 6               # líneas más fuertes que se prueban como ancla del peine
 STRONG = 0.3                # fuerza mínima de una línea, relativa a las líneas típicas
 EDGE_ROOM = 0.8             # fracción de celda que debe caber hasta el borde para añadirla
 MAX_GAP = 3                 # líneas invisibles consecutivas que se toleran (entre celdas negras)
@@ -80,27 +84,43 @@ def line_profiles(warped: np.ndarray, k_h: int | None = None, k_v: int | None = 
 
 
 def estimate_period(profile: np.ndarray) -> float:
-    """Menor desfase con autocorrelación alta, refinado con interpolación parabólica."""
+    """Período de la retícula con un "peine" anclado en la línea más fuerte.
+
+    Para cada período p se evalúa el perfil (dilatado) en ancla + k*p, solo
+    dentro del rango donde hay líneas; la línea más fuerte es con seguridad
+    una línea de la grilla, así que la fase queda fijada por ella. Los
+    múltiplos del período real puntúan igual de alto (sus posiciones también
+    caen en líneas): se elige el menor p con puntuación >= COMB_RATIO del máximo.
+    """
     L = len(profile)
-    d = np.clip(profile - np.median(profile), 0, None)
-    # limitar la altura: una línea exterior gruesa no debe dominar la autocorrelación
-    if d.max() > 0:
-        d = np.minimum(d, 0.5 * d.max())
-    n = 1 << int(np.ceil(np.log2(2 * L)))
-    f = np.fft.rfft(d, n)
-    ac = np.fft.irfft(f * np.conj(f), n)[:L]
-    lo, hi = max(4, int(L / MAX_CELLS)), int(L / MIN_CELLS) + 1
-    seg = ac[lo:hi]
-    if seg.size < 3 or seg.max() <= 0:
+    base = float(np.median(profile))
+    d = np.clip(profile - base, 0, None)
+    if d.max() <= 0:
         return L / MIN_CELLS
-    peaks = [i for i in range(1, len(seg) - 1) if seg[i] >= seg[i - 1] and seg[i] >= seg[i + 1]]
-    best = max(seg[i] for i in peaks) if peaks else seg.max()
-    i = next((i for i in peaks if seg[i] >= AC_RATIO * best), int(np.argmax(seg)))
-    # interpolación parabólica del pico
-    a, b, c = seg[max(i - 1, 0)], seg[i], seg[min(i + 1, len(seg) - 1)]
-    denom = a - 2 * b + c
-    offset = 0.5 * (a - c) / denom if denom != 0 else 0.0
-    return lo + i + float(np.clip(offset, -0.5, 0.5))
+    active = np.nonzero(d >= 0.25 * d.max())[0]
+    a0, a1 = int(active[0]), int(active[-1])
+    # anclas: las líneas más fuertes. La más fuerte puede no ser de la grilla (el
+    # borde de la hoja o un marco), así que se prueban varias
+    peaks = [i for i in range(1, L - 1) if d[i] > 0 and d[i] >= d[i - 1] and d[i] >= d[i + 1]]
+    anchors = sorted(peaks, key=lambda i: -d[i])[:N_ANCHORS] or [int(np.argmax(d))]
+    scores = []
+    periods = np.arange(max(4.0, L / MAX_CELLS), L / MIN_CELLS + 0.5, 0.5)
+    # ventana fija para todos los períodos: una ventana proporcional a p favorecería
+    # a los períodos grandes (atrapan más perfil) y duplicaría el período estimado
+    window = max(2, int(0.006 * L))
+    dil = maximum_filter1d(d, size=2 * window + 1)
+    for p in periods:
+        best = 0.0
+        for anchor in anchors:
+            ks = np.arange(-int((anchor - a0) / p) - 1, int((a1 - anchor) / p) + 2)
+            pos = np.round(anchor + ks * p).astype(int)
+            pos = pos[(pos >= a0 - window) & (pos <= a1 + window) & (pos >= 0) & (pos < L)]
+            if len(pos) >= 2:
+                best = max(best, dil[pos].mean())
+        scores.append(best)
+    scores = np.array(scores)
+    ok = np.nonzero(scores >= COMB_RATIO * scores.max())[0]
+    return float(periods[ok[0]]) if ok.size else float(periods[int(np.argmax(scores))])
 
 
 def fit_lattice(profile: np.ndarray) -> tuple[np.ndarray, float]:
@@ -189,7 +209,8 @@ def detect_grid(warped: np.ndarray) -> Grid:
     ys, s_rows = fit_lattice(prof_y)
     # los perfiles están normalizados por el lado completo de la imagen; se
     # reescalan a la extensión de la grilla en el eje perpendicular
+    # (con tope: una sub-retícula pequeña no debe parecer más nítida que la grilla completa)
     h, w = warped.shape
-    s_cols *= h / max(ys[-1] - ys[0], 1.0)
-    s_rows *= w / max(xs[-1] - xs[0], 1.0)
+    s_cols *= min(h / max(ys[-1] - ys[0], 1.0), MAX_NORM)
+    s_rows *= min(w / max(xs[-1] - xs[0], 1.0), MAX_NORM)
     return Grid(xs, ys, s_rows, s_cols)

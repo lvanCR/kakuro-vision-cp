@@ -42,7 +42,8 @@ PAPER_FLOOR = 0.45          # la iluminación estimada no baja de esta fracción
 WHITE_MIN = 0.85            # brillo relativo mínimo de una celda blanca
 SAT_MAX = 0.18              # saturación máxima de una celda blanca (papel sin color)
 ENCLOSED = 0.75             # fracción mínima de lados con línea de una celda blanca
-LINE_DARK = 0.7             # un píxel de línea es más oscuro que esta fracción del interior de la celda
+LINE_DARK = 0.85            # un píxel de línea es más oscuro que esta fracción del interior de la celda
+                            # (líneas finas y claras, desenfocadas, quedan en ~0.75-0.8 del papel)
 SIDE_COVERAGE = 0.6         # fracción del lado que debe cubrir la línea
 
 
