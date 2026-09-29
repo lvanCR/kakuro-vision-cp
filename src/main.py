@@ -25,7 +25,6 @@ from src.solver.parse import parse_puzzle
 from src.solver.solve import save_result, solve_puzzle
 from src.vision.ocr_cnn import DigitReader
 from src.vision.pipeline import process_gray
-from src.vision.preprocess import load_gray
 
 
 def write_image(path: Path, img: np.ndarray) -> None:
@@ -35,27 +34,36 @@ def write_image(path: Path, img: np.ndarray) -> None:
     buf.tofile(str(path))                   # admite rutas con caracteres no ASCII
 
 
-def run(image_path: str, out_dir: Path, model: str = "M2", reader: DigitReader | None = None) -> dict:
-    out_dir.mkdir(parents=True, exist_ok=True)
+def solve_image(color: np.ndarray, reader: DigitReader, model: str = "M2", source: str = "") -> dict:
+    """Visión + solver + visualización sobre una imagen BGR ya cargada."""
     t0 = time.perf_counter()
-    reader = reader or DigitReader()
-    gray = load_gray(image_path)
-    vision = process_gray(gray, reader, source=str(image_path))
+    vision = process_gray(cv2.cvtColor(color, cv2.COLOR_BGR2GRAY), reader, source=source)
     t_vision = time.perf_counter() - t0
-    with open(out_dir / "puzzle.json", "w", encoding="utf-8") as f:
-        json.dump(vision.puzzle, f, indent=1)
 
     t0 = time.perf_counter()
     result = solve_puzzle(parse_puzzle(vision.puzzle), variant=model)
     t_solver = time.perf_counter() - t0
-    save_result(result, out_dir / "solution.json")
 
+    overlay = overlay_solution(color, vision.puzzle, result.solution, result.corrected_clues) \
+        if result.solved else None
+    clean = render_clean(vision.puzzle, result.solution, result.corrected_clues)
+    return {"vision": vision, "result": result, "overlay": overlay, "clean": clean,
+            "t_vision": t_vision, "t_solver": t_solver}
+
+
+def run(image_path: str, out_dir: Path, model: str = "M2", reader: DigitReader | None = None) -> dict:
+    out_dir.mkdir(parents=True, exist_ok=True)
     color = cv2.imdecode(np.fromfile(image_path, np.uint8), cv2.IMREAD_COLOR)
-    if result.solved:
-        write_image(out_dir / "overlay.png",
-                    overlay_solution(color, vision.puzzle, result.solution, result.corrected_clues))
-    write_image(out_dir / "clean.png", render_clean(vision.puzzle, result.solution, result.corrected_clues))
-    return {"vision": vision, "result": result, "t_vision": t_vision, "t_solver": t_solver}
+    if color is None:
+        raise ValueError(f"no se pudo leer la imagen {image_path}")
+    r = solve_image(color, reader or DigitReader(), model, source=str(image_path))
+    with open(out_dir / "puzzle.json", "w", encoding="utf-8") as f:
+        json.dump(r["vision"].puzzle, f, indent=1)
+    save_result(r["result"], out_dir / "solution.json")
+    if r["overlay"] is not None:
+        write_image(out_dir / "overlay.png", r["overlay"])
+    write_image(out_dir / "clean.png", r["clean"])
+    return r
 
 
 def main(argv: list[str] | None = None) -> int:
