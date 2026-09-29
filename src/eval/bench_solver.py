@@ -118,9 +118,13 @@ def plot(summary: list[dict], out: Path) -> None:
         ends = []
         for variant in VARIANTS:
             rows = [s for s in summary if s["variant"] == variant and s["search"] == search]
-            # cada instancia como punto tenue
-            ax.scatter([float(s["white_cells"]) for s in rows], [float(s["time_ms_median"]) for s in rows],
+            # cada instancia como punto tenue; con "x" las que no terminaron en el límite de tiempo
+            done = [s for s in rows if s["status"] == "OPTIMAL"]
+            timeout = [s for s in rows if s["status"] != "OPTIMAL"]
+            ax.scatter([float(s["white_cells"]) for s in done], [float(s["time_ms_median"]) for s in done],
                        s=14, color=COLORS[variant], alpha=0.3, linewidths=0, marker=MARKERS[variant])
+            ax.scatter([float(s["white_cells"]) for s in timeout], [float(s["time_ms_median"]) for s in timeout],
+                       s=40, color=COLORS[variant], linewidths=2, marker="x")
             # línea por la mediana de cada tamaño de grilla sintética
             by_size: dict[str, list[dict]] = {}
             for s in rows:
@@ -150,7 +154,8 @@ def plot(summary: list[dict], out: Path) -> None:
             ax.spines[side].set_color(GRID)
     axes[0].set_ylabel("Tiempo del solver (ms, escala log)", fontsize=9, color=TEXT_2)
     fig.text(0.06, 0.01, "Líneas: mediana por tamaño de grilla (6x6 a 30x30, 3 semillas). "
-             "Puntos: cada instancia (mediana de las repeticiones).", fontsize=8, color=TEXT_2)
+             "Puntos: cada instancia (mediana de las repeticiones). ×: no terminó dentro del límite de tiempo.",
+             fontsize=8, color=TEXT_2)
     axes[1].legend(frameon=False, fontsize=9, loc="upper left")
     fig.suptitle("Tiempo para encontrar una solución según el tamaño del puzzle (CP-SAT)",
                  fontsize=11, color=TEXT, x=0.06, ha="left")
