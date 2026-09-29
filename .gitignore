@@ -1,0 +1,21 @@
+# Entorno virtual
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Resultados generados
+outputs/*
+!outputs/.gitkeep
+
+# Pesos de la CNN (pueden ser pesados)
+models/*.pt
+models/*.pth
+
+# IDE / sistema
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store
