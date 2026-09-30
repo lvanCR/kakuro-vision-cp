@@ -125,7 +125,7 @@ pip install notebook
 jupyter notebook notebooks/
 ```
 
-Se guardan sin salidas (diffs limpios en git): hay que ejecutarlos para ver las figuras.
+Se guardan con sus salidas, así que las figuras se ven directamente en GitHub. Para regenerarlas, basta con volver a ejecutarlos.
 
 ### Reentrenar la CNN (opcional)
 
